@@ -56,6 +56,34 @@ p {
   min-height: 320px;
 }
 
+.ide:has(.dialog-error) {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.dialog-error {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+
+.selected-path {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.sidebar-empty p + p {
+  margin-top: 12px;
+}
+
+.file-actions button:not(:disabled) {
+  color: var(--text);
+  cursor: pointer;
+}
+
+.file-actions button:not(:disabled):hover {
+  background: #303030;
+}
+
 .toolbar {
   display: flex;
   align-items: center;
