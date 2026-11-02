@@ -29,6 +29,7 @@ function App() {
     try {
       const selected = await open({
         directory,
+        recursive: directory,
         multiple: false,
         title: directory ? "Open Folder" : "Open File",
       });

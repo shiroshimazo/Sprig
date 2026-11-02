@@ -7,8 +7,8 @@
   ],
   "permissions": [
     "core:default",
-    "opener:default",
-    "dialog:default",
-    "fs:default"
+    "dialog:allow-open",
+    "allow-read-file",
+    "allow-list-directory"
   ]
 }

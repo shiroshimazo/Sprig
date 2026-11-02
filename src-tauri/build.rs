@@ -1,3 +1,8 @@
 fn main() {
-    tauri_build::build()
+    tauri_build::try_build(
+        tauri_build::Attributes::new().app_manifest(
+            tauri_build::AppManifest::new().commands(&["read_file", "list_directory"]),
+        ),
+    )
+    .expect("failed to build Tauri permissions");
 }
