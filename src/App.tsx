@@ -5,6 +5,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { CommandLineIcon, File01Icon, FolderOpenIcon, SidebarLeftIcon } from "@hugeicons/core-free-icons";
 import ResizeHandle from "./ResizeHandle";
 import FolderTree from "./FolderTree";
+import CodeEditor from "./CodeEditor";
 import "./App.css";
 
 function App() {
@@ -133,7 +134,7 @@ function App() {
             {filePath ? (
               <>
                 <p className="file-message">Read-only preview. Editing is coming soon.</p>
-                <pre key={filePath} className="file-preview" tabIndex={0} aria-label={`File contents: ${filePath}`}><code>{fileContent}</code></pre>
+                <CodeEditor content={fileContent} path={filePath} />
               </>
             ) : (
               <div className="editor-empty"><p>Select a file to get started.</p></div>

@@ -275,22 +275,10 @@ p {
   flex-shrink: 0;
 }
 
-.file-preview {
+.code-editor {
   flex: 1;
   min-height: 0;
-  margin: 0;
-  padding: 16px;
-  overflow: auto;
-  tab-size: 4;
-}
-
-.file-preview,
-.file-preview code {
-  font: inherit;
-}
-
-.file-preview:focus-visible {
-  outline-offset: -2px;
+  overflow: hidden;
 }
 
 .folder-message {
