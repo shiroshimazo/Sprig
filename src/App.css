@@ -72,19 +72,61 @@ p {
   font-weight: 600;
 }
 
-.file-actions {
+.file-actions,
+.panel-actions {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.file-actions button {
+.file-actions button,
+.panel-actions button {
   padding: 5px 10px;
   border: 1px solid #333333;
   border-radius: 4px;
   color: var(--text-muted);
   background: var(--control);
+}
+
+.panel-actions {
+  margin-left: auto;
+}
+
+.panel-actions button {
+  color: var(--text);
+  cursor: pointer;
+}
+
+.panel-actions button:hover {
+  background: #303030;
+}
+
+.resize-handle {
+  background: var(--border);
+  touch-action: none;
+  user-select: none;
+}
+
+.resize-handle:hover,
+.resize-handle:focus-visible {
+  background: var(--text-muted);
+}
+
+.resize-handle:focus-visible {
+  outline-offset: -2px;
+}
+
+.resize-handle--vertical {
+  cursor: col-resize;
+}
+
+.resize-handle--horizontal {
+  cursor: row-resize;
+}
+
+[hidden] {
+  display: none !important;
 }
 
 .file-actions button:disabled {
@@ -99,20 +141,17 @@ p {
 
 .workspace {
   display: grid;
-  grid-template-columns: clamp(140px, 22vw, 240px) minmax(0, 1fr);
   min-height: 0;
 }
 
 .sidebar {
   min-width: 0;
   overflow: auto;
-  border-right: 1px solid var(--border);
   background: var(--surface);
 }
 
 .workbench {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) clamp(100px, 28vh, 240px);
   min-width: 0;
   min-height: 0;
 }
@@ -165,7 +204,6 @@ p {
 }
 
 .terminal {
-  border-top: 1px solid var(--border);
   background: var(--background);
 }
 
@@ -174,10 +212,6 @@ p {
 }
 
 @media (max-width: 480px) {
-  .workspace {
-    grid-template-columns: 110px minmax(0, 1fr);
-  }
-
   .panel-header,
   .sidebar-empty,
   .terminal-empty {

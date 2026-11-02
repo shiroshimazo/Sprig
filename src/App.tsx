@@ -1,6 +1,12 @@
+import { useState } from "react";
+import ResizeHandle from "./ResizeHandle";
 import "./App.css";
 
 function App() {
+  const [sidebarVisible, setSidebarVisible] = useState(true);
+  const [terminalVisible, setTerminalVisible] = useState(true);
+  const [sidebarWidth, setSidebarWidth] = useState(22);
+  const [terminalHeight, setTerminalHeight] = useState(28);
   return (
     <div className="ide">
       <header className="toolbar">
@@ -10,17 +16,26 @@ function App() {
           <button disabled title="Folder opening is coming soon">Open Folder</button>
           <span className="toolbar-note">Coming soon</span>
         </div>
+        <div className="panel-actions" aria-label="Panel visibility">
+          <button aria-controls="files-panel" aria-expanded={sidebarVisible} onClick={() => setSidebarVisible(!sidebarVisible)}>
+            {sidebarVisible ? "Hide sidebar" : "Show sidebar"}
+          </button>
+          <button aria-controls="terminal-panel" aria-expanded={terminalVisible} onClick={() => setTerminalVisible(!terminalVisible)}>
+            {terminalVisible ? "Hide terminal" : "Show terminal"}
+          </button>
+        </div>
       </header>
 
-      <div className="workspace">
-        <aside className="sidebar" aria-labelledby="files-heading">
+      <div className="workspace" style={{ gridTemplateColumns: sidebarVisible ? `${sidebarWidth}% 6px minmax(0, 1fr)` : "minmax(0, 1fr)" }}>
+        <aside id="files-panel" className="sidebar" hidden={!sidebarVisible} aria-labelledby="files-heading">
           <div className="panel-header">
             <h2 id="files-heading">Files</h2>
           </div>
           <p className="sidebar-empty">No folder open.</p>
         </aside>
+        {sidebarVisible && <ResizeHandle panel="files-panel" label="Resize sidebar" orientation="vertical" value={sidebarWidth} onResize={setSidebarWidth} />}
 
-        <main className="workbench">
+        <main className="workbench" style={{ gridTemplateRows: terminalVisible ? `minmax(0, 1fr) 6px ${terminalHeight}%` : "minmax(0, 1fr)" }}>
           <section className="editor" aria-labelledby="editor-heading">
             <div className="panel-header">
               <h2 id="editor-heading">Editor</h2>
@@ -32,7 +47,8 @@ function App() {
             </div>
           </section>
 
-          <section className="terminal" aria-labelledby="terminal-heading">
+          {terminalVisible && <ResizeHandle panel="terminal-panel" label="Resize terminal" orientation="horizontal" value={terminalHeight} onResize={setTerminalHeight} />}
+          <section id="terminal-panel" className="terminal" hidden={!terminalVisible} aria-labelledby="terminal-heading">
             <div className="panel-header">
               <h2 id="terminal-heading">Terminal</h2>
               <span>Not connected</span>
