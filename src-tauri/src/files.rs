@@ -33,8 +33,14 @@ fn authorized_path(app: &tauri::AppHandle, path: &Path) -> Result<PathBuf, Strin
 
 fn read_text(path: &Path) -> Result<String, String> {
     let file = fs::File::open(path).map_err(|e| format!("Cannot open file: {e}"))?;
-    if !file.metadata().map_err(|e| e.to_string())?.is_file() {
+    let metadata = file
+        .metadata()
+        .map_err(|e| format!("Cannot inspect file: {e}"))?;
+    if !metadata.is_file() {
         return Err("Select a regular file.".into());
+    }
+    if metadata.len() > MAX_FILE_BYTES {
+        return Err("Files larger than 10 MiB are not supported yet.".into());
     }
     let mut bytes = Vec::new();
     file.take(MAX_FILE_BYTES + 1)
@@ -43,7 +49,10 @@ fn read_text(path: &Path) -> Result<String, String> {
     if bytes.len() as u64 > MAX_FILE_BYTES {
         return Err("Files larger than 10 MiB are not supported yet.".into());
     }
-    if bytes.contains(&0) {
+    if bytes
+        .iter()
+        .any(|byte| matches!(byte, 0..=8 | 11 | 14..=31 | 127))
+    {
         return Err("Binary files are not supported.".into());
     }
     String::from_utf8(bytes).map_err(|_| "Only UTF-8 text files are supported.".into())
@@ -117,6 +126,37 @@ mod tests {
             assert!(read_text(&root).is_err());
             fs::write(root.join("binary"), [0, 1]).unwrap();
             assert!(read_text(&root.join("binary")).is_err());
+            fs::write(root.join("controls"), [1, 2, 3]).unwrap();
+            assert_eq!(
+                read_text(&root.join("controls")).unwrap_err(),
+                "Binary files are not supported."
+            );
+            fs::write(root.join("empty"), []).unwrap();
+            assert_eq!(read_text(&root.join("empty")).unwrap(), "");
+            let whitespace = "\ttext\r\n\n\u{c}";
+            fs::write(root.join("whitespace"), whitespace).unwrap();
+            assert_eq!(read_text(&root.join("whitespace")).unwrap(), whitespace);
+            fs::write(root.join("limit"), vec![b'a'; MAX_FILE_BYTES as usize]).unwrap();
+            assert_eq!(
+                read_text(&root.join("limit")).unwrap().len(),
+                MAX_FILE_BYTES as usize
+            );
+            #[cfg(windows)]
+            {
+                use std::os::windows::fs::OpenOptionsExt;
+                let locked = fs::OpenOptions::new()
+                    .read(true)
+                    .share_mode(0)
+                    .open(root.join("a file.txt"))
+                    .unwrap();
+                assert!(
+                    read_text(&root.join("a file.txt"))
+                        .unwrap_err()
+                        .contains("Cannot open file")
+                );
+                drop(locked);
+                assert_eq!(read_text(&root.join("a file.txt")).unwrap(), text);
+            }
             fs::write(root.join("invalid"), [255]).unwrap();
             assert!(read_text(&root.join("invalid")).is_err());
             let large = fs::File::create(root.join("large")).unwrap();
