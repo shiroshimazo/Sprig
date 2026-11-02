@@ -251,6 +251,48 @@ p {
   color: var(--text-muted);
 }
 
+.file-entry {
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.file-entry:hover,
+.file-entry[aria-current="true"] {
+  color: var(--text);
+  background: var(--control);
+}
+
+.file-entry:focus-visible {
+  outline-offset: -2px;
+}
+
+.file-message {
+  padding: 8px 16px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+  flex-shrink: 0;
+}
+
+.file-preview {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 16px;
+  overflow: auto;
+  tab-size: 4;
+}
+
+.file-preview,
+.file-preview code {
+  font: inherit;
+}
+
+.file-preview:focus-visible {
+  outline-offset: -2px;
+}
+
 .folder-message {
   padding: 8px;
   font-size: 12px;

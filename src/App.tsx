@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { isTauri } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { CommandLineIcon, File01Icon, FolderOpenIcon, SidebarLeftIcon } from "@hugeicons/core-free-icons";
@@ -17,6 +17,28 @@ function App() {
   const [dialogPending, setDialogPending] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const dialogActive = useRef(false);
+  const [fileContent, setFileContent] = useState("");
+  const [loadingPath, setLoadingPath] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const readRequest = useRef(0);
+
+  async function openFile(path: string) {
+    const request = ++readRequest.current;
+    setLoadingPath(path);
+    setFileError(null);
+    try {
+      const content = await invoke<string>("read_file", { path });
+      if (request !== readRequest.current) return;
+      setFilePath(path);
+      setFileContent(content);
+    } catch (error) {
+      if (request === readRequest.current) {
+        setFileError(`Cannot open ${path}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    } finally {
+      if (request === readRequest.current) setLoadingPath(null);
+    }
+  }
 
   async function selectPath(directory: boolean) {
     if (dialogActive.current) return;
@@ -39,7 +61,7 @@ function App() {
           setFolderPath(selected);
           setSidebarVisible(true);
         } else {
-          setFilePath(selected);
+          void openFile(selected);
         }
       }
     } catch (error) {
@@ -96,7 +118,7 @@ function App() {
           <div className="panel-header">
             <h2 id="files-heading">Files</h2>
           </div>
-          {folderPath ? <FolderTree key={folderPath} path={folderPath} /> : <p className="sidebar-empty">No folder open.</p>}
+          {folderPath ? <FolderTree key={folderPath} path={folderPath} activePath={filePath} onOpenFile={openFile} /> : <p className="sidebar-empty">No folder open.</p>}
         </aside>
         {sidebarVisible && <ResizeHandle panel="files-panel" label="Resize sidebar" orientation="vertical" value={sidebarWidth} onResize={setSidebarWidth} />}
 
@@ -106,10 +128,16 @@ function App() {
               <h2 id="editor-heading">Editor</h2>
               <span className="selected-path" title={filePath ?? undefined}>{filePath ?? "No file open"}</span>
             </div>
-            <div className="editor-empty">
-              <p>{filePath ? "File selected." : "Select a file to get started."}</p>
-              <p>File reading and editing are coming soon.</p>
-            </div>
+            {loadingPath && <p className="file-message" role="status">Opening {loadingPath}...</p>}
+            {fileError && <p className="file-message" role="alert">{fileError}</p>}
+            {filePath ? (
+              <>
+                <p className="file-message">Read-only preview. Editing is coming soon.</p>
+                <pre key={filePath} className="file-preview" tabIndex={0} aria-label={`File contents: ${filePath}`}><code>{fileContent}</code></pre>
+              </>
+            ) : (
+              <div className="editor-empty"><p>Select a file to get started.</p></div>
+            )}
           </section>
 
           {terminalVisible && <ResizeHandle panel="terminal-panel" label="Resize terminal" orientation="horizontal" value={terminalHeight} onResize={setTerminalHeight} />}

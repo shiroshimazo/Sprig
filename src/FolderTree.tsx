@@ -10,7 +10,14 @@ type FileEntry = {
   isSymlink: boolean;
 };
 
-export default function FolderTree({ path, name = path }: { path: string; name?: string }) {
+type FolderTreeProps = {
+  path: string;
+  name?: string;
+  activePath: string | null;
+  onOpenFile: (path: string) => void;
+};
+
+export default function FolderTree({ path, name = path, activePath, onOpenFile }: FolderTreeProps) {
   const [expanded, setExpanded] = useState(false);
   const [entries, setEntries] = useState<FileEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -54,12 +61,12 @@ export default function FolderTree({ path, name = path }: { path: string; name?:
             {entries.map((entry) => (
               <li key={entry.path}>
                 {entry.isDirectory && !entry.isSymlink ? (
-                  <FolderTree path={entry.path} name={entry.name} />
+                  <FolderTree path={entry.path} name={entry.name} activePath={activePath} onOpenFile={onOpenFile} />
                 ) : (
-                  <div className="file-entry" title={entry.path}>
+                  <button className="file-entry" title={entry.path} aria-current={activePath === entry.path ? "true" : undefined} onClick={() => onOpenFile(entry.path)}>
                     <HugeiconsIcon icon={File01Icon} size={16} aria-hidden="true" focusable="false" />
                     <span className="entry-name">{entry.name}{entry.isSymlink ? " (link)" : ""}</span>
-                  </div>
+                  </button>
                 )}
               </li>
             ))}
