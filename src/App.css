@@ -1,10 +1,16 @@
 :root {
-  font-family: "Segoe UI", system-ui, sans-serif;
+  --background: #090909;
+  --surface: #111111;
+  --control: #191919;
+  --border: #262626;
+  --text: #e5e5e5;
+  --text-muted: #a3a3a3;
+  font-family: "Cascadia Mono", Consolas, monospace;
   font-size: 13px;
   line-height: 1.5;
   font-weight: 400;
-  color: #e5e5e5;
-  background: #090909;
+  color: var(--text);
+  background: var(--background);
   color-scheme: dark;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -18,6 +24,23 @@
 
 body {
   margin: 0;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+::selection {
+  color: var(--text);
+  background: #404040;
+}
+
+:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
 }
 
 h1,
@@ -40,8 +63,8 @@ p {
   gap: 12px 32px;
   min-height: 48px;
   padding: 8px 16px;
-  border-bottom: 1px solid #262626;
-  background: #111111;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .toolbar h1 {
@@ -60,9 +83,8 @@ p {
   padding: 5px 10px;
   border: 1px solid #333333;
   border-radius: 4px;
-  font: inherit;
-  color: #a3a3a3;
-  background: #191919;
+  color: var(--text-muted);
+  background: var(--control);
 }
 
 .file-actions button:disabled {
@@ -72,7 +94,7 @@ p {
 .toolbar-note,
 .panel-header span {
   font-size: 12px;
-  color: #a3a3a3;
+  color: var(--text-muted);
 }
 
 .workspace {
@@ -84,8 +106,8 @@ p {
 .sidebar {
   min-width: 0;
   overflow: auto;
-  border-right: 1px solid #262626;
-  background: #101010;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .workbench {
@@ -112,7 +134,7 @@ p {
   gap: 4px 12px;
   min-height: 38px;
   padding: 8px 16px;
-  border-bottom: 1px solid #202020;
+  border-bottom: 1px solid var(--border);
 }
 
 .panel-header h2 {
@@ -123,7 +145,7 @@ p {
 .sidebar-empty,
 .terminal-empty {
   padding: 16px;
-  color: #a3a3a3;
+  color: var(--text-muted);
 }
 
 .editor-empty {
@@ -138,17 +160,16 @@ p {
 }
 
 .editor-empty p + p {
-  color: #a3a3a3;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
 .terminal {
-  border-top: 1px solid #303030;
-  background: #0d0d0d;
+  border-top: 1px solid var(--border);
+  background: var(--background);
 }
 
 .terminal-empty {
-  font-family: Consolas, "Courier New", monospace;
   font-size: 12px;
 }
 
