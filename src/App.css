@@ -197,6 +197,75 @@ p {
   background: var(--surface);
 }
 
+.folder-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.folder-contents {
+  margin-left: 12px;
+}
+
+.folder-toggle,
+.file-entry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 8px;
+  color: var(--text);
+}
+
+.folder-toggle {
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.folder-toggle:hover,
+.folder-retry:hover {
+  background: var(--control);
+}
+
+.folder-toggle:focus-visible {
+  outline-offset: -2px;
+}
+
+.folder-toggle svg,
+.file-entry svg,
+.folder-arrow {
+  flex-shrink: 0;
+}
+
+.entry-name,
+.folder-message {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.file-entry,
+.folder-message {
+  color: var(--text-muted);
+}
+
+.folder-message {
+  padding: 8px;
+  font-size: 12px;
+}
+
+.folder-retry {
+  margin-top: 8px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
 .workbench {
   display: grid;
   min-width: 0;

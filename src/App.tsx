@@ -4,6 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { CommandLineIcon, File01Icon, FolderOpenIcon, SidebarLeftIcon } from "@hugeicons/core-free-icons";
 import ResizeHandle from "./ResizeHandle";
+import FolderTree from "./FolderTree";
 import "./App.css";
 
 function App() {
@@ -95,10 +96,7 @@ function App() {
           <div className="panel-header">
             <h2 id="files-heading">Files</h2>
           </div>
-          <div className="sidebar-empty">
-            <p className="selected-path" title={folderPath ?? undefined}>{folderPath ?? "No folder open."}</p>
-            {folderPath && <p>Folder browsing is coming soon.</p>}
-          </div>
+          {folderPath ? <FolderTree key={folderPath} path={folderPath} /> : <p className="sidebar-empty">No folder open.</p>}
         </aside>
         {sidebarVisible && <ResizeHandle panel="files-panel" label="Resize sidebar" orientation="vertical" value={sidebarWidth} onResize={setSidebarWidth} />}
 
