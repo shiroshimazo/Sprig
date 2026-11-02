@@ -19,6 +19,9 @@ function App() {
   const [dialogError, setDialogError] = useState<string | null>(null);
   const dialogActive = useRef(false);
   const [fileContent, setFileContent] = useState("");
+  const [currentContent, setCurrentContent] = useState("");
+  const [fileVersion, setFileVersion] = useState(0);
+  const isDirty = currentContent.replace(/\r\n?/g, "\n") !== fileContent.replace(/\r\n?/g, "\n");
   const [loadingPath, setLoadingPath] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const readRequest = useRef(0);
@@ -32,6 +35,8 @@ function App() {
       if (request !== readRequest.current) return;
       setFilePath(path);
       setFileContent(content);
+      setCurrentContent(content);
+      setFileVersion((version) => version + 1);
     } catch (error) {
       if (request === readRequest.current) {
         setFileError(`Cannot open ${path}: ${error instanceof Error ? error.message : String(error)}`);
@@ -128,13 +133,14 @@ function App() {
             <div className="panel-header">
               <h2 id="editor-heading">Editor</h2>
               <span className="selected-path" title={filePath ?? undefined}>{filePath ?? "No file open"}</span>
+              {filePath && <span role="status">{isDirty ? "Unsaved changes" : "Unchanged"}</span>}
             </div>
             {loadingPath && <p className="file-message" role="status">Opening {loadingPath}...</p>}
             {fileError && <p className="file-message" role="alert">{fileError}</p>}
             {filePath ? (
               <>
                 <p className="file-message">Temporary edits only. Reopening files or closing the app discards edits. Ctrl+Z: undo; Ctrl+Y: redo; Ctrl+F: find/replace.</p>
-                <CodeEditor content={fileContent} path={filePath} />
+                <CodeEditor key={fileVersion} content={fileContent} path={filePath} onChange={setCurrentContent} />
               </>
             ) : (
               <div className="editor-empty"><p>Select a file to get started.</p></div>

@@ -22,7 +22,7 @@ function languageFor(path: string) {
   }
 }
 
-export default function CodeEditor({ content, path }: { content: string; path: string }) {
+export default function CodeEditor({ content, path, onChange }: { content: string; path: string; onChange: (content: string) => void }) {
   const container = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -40,6 +40,9 @@ export default function CodeEditor({ content, path }: { content: string; path: s
           indentOnInput(),
           bracketMatching(),
           history(),
+          EditorView.updateListener.of((update) => {
+            if (update.docChanged) onChange(update.state.sliceDoc());
+          }),
           search({ top: true }),
           keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
           EditorView.contentAttributes.of({
@@ -66,7 +69,7 @@ export default function CodeEditor({ content, path }: { content: string; path: s
       }),
     });
     return () => view.destroy();
-  }, [content, path]);
+  }, [content, path, onChange]);
 
   return <div className="code-editor" ref={container} />;
 }
