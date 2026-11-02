@@ -133,7 +133,7 @@ function App() {
             {fileError && <p className="file-message" role="alert">{fileError}</p>}
             {filePath ? (
               <>
-                <p className="file-message">Read-only preview. Editing is coming soon.</p>
+                <p className="file-message">Temporary edits only. Reopening files or closing the app discards edits. Ctrl+Z: undo; Ctrl+Y: redo; Ctrl+F: find/replace.</p>
                 <CodeEditor content={fileContent} path={filePath} />
               </>
             ) : (
