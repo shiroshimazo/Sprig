@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -20,7 +20,13 @@ function App() {
   const dialogActive = useRef(false);
   const [fileContent, setFileContent] = useState("");
   const [currentContent, setCurrentContent] = useState("");
-  const [fileVersion, setFileVersion] = useState(0);
+  const documents = useRef(new Map<string, { saved: string; current: string }>());
+  const activePath = useRef<string | null>(null);
+  const updateContent = useCallback((content: string) => {
+    const document = activePath.current ? documents.current.get(activePath.current) : undefined;
+    if (document) document.current = content;
+    setCurrentContent(content);
+  }, []);
   const isDirty = currentContent.replace(/\r\n?/g, "\n") !== fileContent.replace(/\r\n?/g, "\n");
   const [loadingPath, setLoadingPath] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -31,12 +37,15 @@ function App() {
     setLoadingPath(path);
     setFileError(null);
     try {
-      const content = await invoke<string>("read_file", { path });
+      const cached = documents.current.get(path);
+      const content = cached?.saved ?? await invoke<string>("read_file", { path });
       if (request !== readRequest.current) return;
+      const document = cached ?? { saved: content, current: content };
+      documents.current.set(path, document);
+      activePath.current = path;
       setFilePath(path);
       setFileContent(content);
-      setCurrentContent(content);
-      setFileVersion((version) => version + 1);
+      setCurrentContent(document.current);
     } catch (error) {
       if (request === readRequest.current) {
         setFileError(`Cannot open ${path}: ${error instanceof Error ? error.message : String(error)}`);
@@ -139,8 +148,8 @@ function App() {
             {fileError && <p className="file-message" role="alert">{fileError}</p>}
             {filePath ? (
               <>
-                <p className="file-message">Temporary edits only. Reopening files or closing the app discards edits. Ctrl+Z: undo; Ctrl+Y: redo; Ctrl+F: find/replace.</p>
-                <CodeEditor key={fileVersion} content={fileContent} path={filePath} onChange={setCurrentContent} />
+                <p className="file-message">Edits stay in memory while switching files. Closing the app discards edits. Ctrl+Z: undo; Ctrl+Y: redo; Ctrl+F: find/replace.</p>
+                <CodeEditor content={fileContent} path={filePath} onChange={updateContent} />
               </>
             ) : (
               <div className="editor-empty"><p>Select a file to get started.</p></div>

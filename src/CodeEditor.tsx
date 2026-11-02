@@ -24,12 +24,14 @@ function languageFor(path: string) {
 
 export default function CodeEditor({ content, path, onChange }: { content: string; path: string; onChange: (content: string) => void }) {
   const container = useRef<HTMLDivElement>(null);
+  const sessions = useRef(new Map<string, { state: EditorState; top: number; left: number }>());
 
   useEffect(() => {
     if (!container.current) return;
+    const cached = sessions.current.get(path);
     const view = new EditorView({
       parent: container.current,
-      state: EditorState.create({
+      state: cached?.state ?? EditorState.create({
         doc: content,
         extensions: [
           lineNumbers(),
@@ -68,7 +70,23 @@ export default function CodeEditor({ content, path, onChange }: { content: strin
         ],
       }),
     });
-    return () => view.destroy();
+    if (cached) {
+      view.requestMeasure({
+        read: () => null,
+        write: () => {
+          view.scrollDOM.scrollTop = cached.top;
+          view.scrollDOM.scrollLeft = cached.left;
+        },
+      });
+    }
+    return () => {
+      sessions.current.set(path, {
+        state: view.state,
+        top: view.scrollDOM.scrollTop,
+        left: view.scrollDOM.scrollLeft,
+      });
+      view.destroy();
+    };
   }, [content, path, onChange]);
 
   return <div className="code-editor" ref={container} />;
