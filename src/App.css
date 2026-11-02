@@ -82,6 +82,12 @@ p {
 
 .file-actions button,
 .panel-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 36px;
+  min-height: 36px;
   padding: 5px 10px;
   border: 1px solid #333333;
   border-radius: 4px;
@@ -100,6 +106,19 @@ p {
 
 .panel-actions button:hover {
   background: #303030;
+}
+
+.panel-actions button[aria-expanded="false"] {
+  color: var(--text-muted);
+  background: transparent;
+}
+
+.toolbar button svg {
+  flex-shrink: 0;
+}
+
+.file-actions button:disabled {
+  pointer-events: none;
 }
 
 .resize-handle {

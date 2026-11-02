@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { CommandLineIcon, File01Icon, FolderOpenIcon, SidebarLeftIcon } from "@hugeicons/core-free-icons";
 import ResizeHandle from "./ResizeHandle";
 import "./App.css";
 
@@ -12,16 +14,38 @@ function App() {
       <header className="toolbar">
         <h1>Personal IDE</h1>
         <div className="file-actions" aria-label="File actions">
-          <button disabled title="File opening is coming soon">Open File</button>
-          <button disabled title="Folder opening is coming soon">Open Folder</button>
+          <span title="Open file — coming soon">
+            <button disabled aria-label="Open file (coming soon)">
+              <HugeiconsIcon icon={File01Icon} size={18} aria-hidden="true" focusable="false" />
+              Open File
+            </button>
+          </span>
+          <span title="Open folder — coming soon">
+            <button disabled aria-label="Open folder (coming soon)">
+              <HugeiconsIcon icon={FolderOpenIcon} size={18} aria-hidden="true" focusable="false" />
+              Open Folder
+            </button>
+          </span>
           <span className="toolbar-note">Coming soon</span>
         </div>
         <div className="panel-actions" aria-label="Panel visibility">
-          <button aria-controls="files-panel" aria-expanded={sidebarVisible} onClick={() => setSidebarVisible(!sidebarVisible)}>
-            {sidebarVisible ? "Hide sidebar" : "Show sidebar"}
+          <button
+            aria-label={sidebarVisible ? "Hide sidebar" : "Show sidebar"}
+            title={sidebarVisible ? "Hide sidebar" : "Show sidebar"}
+            aria-controls="files-panel"
+            aria-expanded={sidebarVisible}
+            onClick={() => setSidebarVisible(!sidebarVisible)}
+          >
+            <HugeiconsIcon icon={SidebarLeftIcon} size={18} aria-hidden="true" focusable="false" />
           </button>
-          <button aria-controls="terminal-panel" aria-expanded={terminalVisible} onClick={() => setTerminalVisible(!terminalVisible)}>
-            {terminalVisible ? "Hide terminal" : "Show terminal"}
+          <button
+            aria-label={terminalVisible ? "Hide terminal" : "Show terminal"}
+            title={terminalVisible ? "Hide terminal" : "Show terminal"}
+            aria-controls="terminal-panel"
+            aria-expanded={terminalVisible}
+            onClick={() => setTerminalVisible(!terminalVisible)}
+          >
+            <HugeiconsIcon icon={CommandLineIcon} size={18} aria-hidden="true" focusable="false" />
           </button>
         </div>
       </header>
