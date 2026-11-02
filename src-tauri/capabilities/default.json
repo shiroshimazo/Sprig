@@ -9,6 +9,7 @@
     "core:default",
     "dialog:allow-open",
     "allow-read-file",
+    "allow-save-file",
     "allow-list-directory"
   ]
 }

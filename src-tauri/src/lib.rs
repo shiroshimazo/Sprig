@@ -8,6 +8,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             files::read_file,
+            files::save_file,
             files::list_directory
         ])
         .run(tauri::generate_context!())

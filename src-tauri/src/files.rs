@@ -1,12 +1,49 @@
 use serde::Serialize;
 use std::{
     fs,
-    io::Read,
+    io::{Read, Write},
     path::{Path, PathBuf},
 };
 use tauri_plugin_fs::FsExt;
 
 const MAX_FILE_BYTES: u64 = 10 * 1024 * 1024;
+
+fn write_text(path: &Path, content: &str) -> Result<(), String> {
+    if content.len() as u64 > MAX_FILE_BYTES {
+        return Err("Files larger than 10 MiB are not supported yet.".into());
+    }
+    let metadata = fs::metadata(path).map_err(|e| format!("Cannot inspect file: {e}"))?;
+    if !metadata.is_file() || metadata.permissions().readonly() {
+        return Err("This file is not writable.".into());
+    }
+    let parent = path.parent().ok_or("File has no parent folder.")?;
+    let mut temporary = tempfile::NamedTempFile::new_in(parent).map_err(|e| e.to_string())?;
+    temporary
+        .write_all(content.as_bytes())
+        .map_err(|e| e.to_string())?;
+    temporary
+        .as_file()
+        .set_permissions(metadata.permissions())
+        .map_err(|e| e.to_string())?;
+    temporary.as_file().sync_all().map_err(|e| e.to_string())?;
+    temporary
+        .persist(path)
+        .map_err(|e| format!("Cannot replace file: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn save_file(
+    app: tauri::AppHandle,
+    path: PathBuf,
+    content: String,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        write_text(&authorized_path(&app, &path)?, &content)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -100,6 +137,19 @@ pub async fn list_directory(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn saves_and_rejects_oversized_content_without_changing_file() {
+        let folder = tempfile::tempdir().unwrap();
+        let path = folder.path().join("file.txt");
+        fs::write(&path, "before").unwrap();
+        write_text(&path, "after\r\n").unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), "after\r\n");
+        assert!(write_text(&path, &"x".repeat(MAX_FILE_BYTES as usize + 1)).is_err());
+        assert_eq!(fs::read_to_string(&path).unwrap(), "after\r\n");
+        write_text(&path, "").unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"");
+    }
 
     #[test]
     fn reads_text_and_lists_only_immediate_children() {

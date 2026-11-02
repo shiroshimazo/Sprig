@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -31,6 +31,39 @@ function App() {
   const [loadingPath, setLoadingPath] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const readRequest = useRef(0);
+  const saving = useRef(false);
+  const [savePending, setSavePending] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const saveFile = useCallback(async () => {
+    const path = activePath.current;
+    const document = path ? documents.current.get(path) : undefined;
+    if (!path || !document || saving.current) return;
+    const content = document.current;
+    saving.current = true;
+    setSavePending(true);
+    setSaveError(null);
+    try {
+      await invoke("save_file", { path, content });
+      document.saved = content;
+      if (activePath.current === path) setFileContent(content);
+    } catch (error) {
+      setSaveError(`Cannot save ${path}: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      saving.current = false;
+      setSavePending(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleSave = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        void saveFile();
+      }
+    };
+    window.addEventListener("keydown", handleSave);
+    return () => window.removeEventListener("keydown", handleSave);
+  }, [saveFile]);
 
   async function openFile(path: string) {
     const request = ++readRequest.current;
@@ -91,6 +124,7 @@ function App() {
       <header className="toolbar">
         <h1>Personal IDE</h1>
         <div className="file-actions" aria-label="File actions">
+          <button disabled={!filePath || savePending} title="Save (Ctrl+S)" onClick={() => void saveFile()}>{savePending ? "Saving..." : "Save"}</button>
           <span title="Open file">
             <button disabled={dialogPending} aria-label="Open file" title="Open file" onClick={() => selectPath(false)}>
               <HugeiconsIcon icon={File01Icon} size={18} aria-hidden="true" focusable="false" />
@@ -146,9 +180,10 @@ function App() {
             </div>
             {loadingPath && <p className="file-message" role="status">Opening {loadingPath}...</p>}
             {fileError && <p className="file-message" role="alert">{fileError}</p>}
+            {saveError && <p className="file-message" role="alert">{saveError}</p>}
             {filePath ? (
               <>
-                <p className="file-message">Edits stay in memory while switching files. Closing the app discards edits. Ctrl+Z: undo; Ctrl+Y: redo; Ctrl+F: find/replace.</p>
+                <p className="file-message">Ctrl+S: save; Ctrl+Z: undo; Ctrl+Y: redo; Ctrl+F: find/replace. Closing the app discards unsaved edits.</p>
                 <CodeEditor content={fileContent} path={filePath} onChange={updateContent} />
               </>
             ) : (
