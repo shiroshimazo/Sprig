@@ -258,8 +258,18 @@ function App() {
               {filePath && <span role="status">{isDirty ? "Unsaved changes" : "Unchanged"}</span>}
             </div>
             {loadingPath && <p className="file-message" role="status">Opening {loadingPath}...</p>}
-            {fileError && <p className="file-message" role="alert">{fileError}</p>}
-            {saveError && <p className="file-message" role="alert">{saveError}</p>}
+            {fileError && (
+              <div className="file-error">
+                <div role="alert"><strong>File could not be opened</strong><p>{fileError}</p><p>Your current edits are unchanged. Check the file and try opening it again.</p></div>
+                <button aria-label="Dismiss file error" onClick={() => setFileError(null)}>Dismiss</button>
+              </div>
+            )}
+            {saveError && (
+              <div className="file-error">
+                <div role="alert"><strong>Action failed</strong><p>{saveError}</p><p>Your unsaved edits remain in memory.</p></div>
+                <button aria-label="Dismiss save error" onClick={() => setSaveError(null)}>Dismiss</button>
+              </div>
+            )}
             {filePath ? (
               <>
                 <p className="file-message">Ctrl+S: save; Ctrl+Z: undo; Ctrl+Y: redo; Ctrl+F: find/replace. Closing the app discards unsaved edits.</p>
