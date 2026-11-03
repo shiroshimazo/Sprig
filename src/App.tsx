@@ -13,6 +13,7 @@ import "./App.css";
 function App() {
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [terminalVisible, setTerminalVisible] = useState(true);
+  const [terminalStatus, setTerminalStatus] = useState("Not connected");
   const [sidebarWidth, setSidebarWidth] = useState(22);
   const [terminalHeight, setTerminalHeight] = useState(28);
   const [filePath, setFilePath] = useState<string | null>(null);
@@ -285,9 +286,9 @@ function App() {
           <section id="terminal-panel" className="terminal" hidden={!terminalVisible} aria-labelledby="terminal-heading">
             <div className="panel-header">
               <h2 id="terminal-heading">Terminal</h2>
-              <span>Not connected</span>
+              <span role="status">{terminalStatus}</span>
             </div>
-            <TerminalPanel />
+            <TerminalPanel onStatus={setTerminalStatus} />
           </section>
         </main>
       </div>

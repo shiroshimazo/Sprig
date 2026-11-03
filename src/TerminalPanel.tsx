@@ -1,9 +1,10 @@
 import { useEffect, useRef } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { Channel, invoke, isTauri } from "@tauri-apps/api/core";
 import "@xterm/xterm/css/xterm.css";
 
-export default function TerminalPanel() {
+export default function TerminalPanel({ onStatus }: { onStatus: (status: string) => void }) {
   const container = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -26,8 +27,20 @@ export default function TerminalPanel() {
     const fit = new FitAddon();
     terminal.loadAddon(fit);
     terminal.open(element);
-    terminal.writeln("Shell not connected. Terminal setup is in progress.");
     let disposed = false;
+    let connected = false;
+    let exited = false;
+    const id = crypto.randomUUID();
+    const report = (error: unknown) => {
+      if (!disposed) terminal.writeln(`\r\nTerminal error: ${String(error)}`);
+    };
+    let writes = Promise.resolve();
+    const input = terminal.onData((data) => {
+      if (connected) writes = writes.then(() => invoke<void>("terminal_write", { id, data })).catch(report);
+    });
+    const dimensions = terminal.onResize(({ cols, rows }) => {
+      if (connected) void invoke("terminal_resize", { id, cols, rows }).catch(report);
+    });
     const resize = () => {
       if (!disposed && element.clientWidth > 0 && element.clientHeight > 0) fit.fit();
     };
@@ -35,12 +48,47 @@ export default function TerminalPanel() {
     observer.observe(element);
     void document.fonts.ready.then(resize);
     resize();
+    if (isTauri()) {
+      onStatus("Connecting");
+      const output = new Channel<{ type: "output"; data: number[] } | { type: "exit" } | { type: "error"; data: string }>();
+      output.onmessage = (event) => {
+        if (disposed) return;
+        if (event.type === "output") {
+          connected = true;
+          terminal.options.disableStdin = false;
+          terminal.write(new Uint8Array(event.data));
+        }
+        else if (event.type === "error") report(event.data);
+        else {
+          exited = true;
+          connected = false;
+          terminal.options.disableStdin = true;
+          onStatus("Exited");
+          terminal.writeln("\r\nShell exited.");
+        }
+      };
+      void invoke("terminal_start", { id, cols: terminal.cols, rows: terminal.rows, output }).then(async () => {
+        if (disposed) { await invoke("terminal_stop", { id }); return; }
+        if (exited) return;
+        connected = true;
+        terminal.options.disableStdin = false;
+        onStatus("Connected");
+        await invoke("terminal_resize", { id, cols: terminal.cols, rows: terminal.rows });
+      }).catch((error) => { if (!disposed) onStatus("Connection failed"); report(error); });
+    } else {
+      onStatus("Desktop app required");
+      terminal.writeln("Open the desktop app to start a local shell.");
+    }
     return () => {
       disposed = true;
+      if (connected) void invoke("terminal_stop", { id }).catch(() => {});
+      connected = false;
+      input.dispose();
+      dimensions.dispose();
       observer.disconnect();
       terminal.dispose();
     };
-  }, []);
+  }, [onStatus]);
 
   return <div ref={container} className="terminal-content" aria-label="Terminal output" />;
 }
