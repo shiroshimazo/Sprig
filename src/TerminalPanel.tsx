@@ -40,9 +40,22 @@ export default function TerminalPanel({ onStatus, cwd }: { onStatus: (status: st
         if (!disposed && connected) await invoke<void>("terminal_write", { id, data });
       }).catch(report);
     });
-    const dimensions = terminal.onResize(({ cols, rows }) => {
-      if (connected) void invoke("terminal_resize", { id, cols, rows }).catch(report);
-    });
+    let pendingSize: { cols: number; rows: number } | null = null;
+    let resizing = false;
+    const syncSize = async (cols: number, rows: number) => {
+      pendingSize = { cols, rows };
+      if (resizing || !connected || disposed) return;
+      resizing = true;
+      try {
+        while (pendingSize && connected && !disposed) {
+          const size = pendingSize;
+          pendingSize = null;
+          await invoke("terminal_resize", { id, ...size });
+        }
+      } catch (error) { if (connected && !disposed) report(error); }
+      finally { resizing = false; }
+    };
+    const dimensions = terminal.onResize(({ cols, rows }) => { void syncSize(cols, rows); });
     const resize = () => {
       if (!disposed && element.clientWidth > 0 && element.clientHeight > 0) fit.fit();
     };
@@ -75,7 +88,7 @@ export default function TerminalPanel({ onStatus, cwd }: { onStatus: (status: st
         connected = true;
         terminal.options.disableStdin = false;
         onStatus("Connected");
-        await invoke("terminal_resize", { id, cols: terminal.cols, rows: terminal.rows });
+        await syncSize(terminal.cols, terminal.rows);
       }).catch((error) => { if (!disposed) onStatus("Connection failed"); report(error); });
     } else {
       onStatus("Desktop app required");
