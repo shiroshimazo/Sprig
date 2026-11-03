@@ -27,7 +27,7 @@ function App() {
     if (document) document.current = content;
     setCurrentContent(content);
   }, []);
-  const isDirty = currentContent.replace(/\r\n?/g, "\n") !== fileContent.replace(/\r\n?/g, "\n");
+  const isDirty = currentContent !== fileContent;
   const [loadingPath, setLoadingPath] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const readRequest = useRef(0);

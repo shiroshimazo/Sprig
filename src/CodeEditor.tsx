@@ -8,6 +8,7 @@ import { bracketMatching, defaultHighlightStyle, indentOnInput, indentUnit, synt
 import { javascript } from "@codemirror/lang-javascript";
 import { java } from "@codemirror/lang-java";
 import { sql } from "@codemirror/lang-sql";
+import { preserveLineEndings } from "./lineEndings";
 
 function languageFor(path: string) {
   const extension = path.split(".").pop()?.toLowerCase();
@@ -29,6 +30,7 @@ export default function CodeEditor({ content, path, onChange }: { content: strin
   useEffect(() => {
     if (!container.current) return;
     const cached = sessions.current.get(path);
+    const lineEndings = preserveLineEndings(content);
     const view = new EditorView({
       parent: container.current,
       state: cached?.state ?? EditorState.create({
@@ -42,8 +44,9 @@ export default function CodeEditor({ content, path, onChange }: { content: strin
           indentOnInput(),
           bracketMatching(),
           history(),
+          lineEndings.extensions,
           EditorView.updateListener.of((update) => {
-            if (update.docChanged) onChange(update.state.sliceDoc());
+            if (update.docChanged) onChange(update.state.field(lineEndings.rawText));
           }),
           search({ top: true }),
           keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
