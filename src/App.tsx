@@ -288,6 +288,7 @@ function App() {
           <section id="terminal-panel" className="terminal" hidden={!terminalVisible} aria-labelledby="terminal-heading">
             <div className="panel-header">
               <h2 id="terminal-heading">Terminal</h2>
+              <button className="folder-retry" title="Ends the current shell and starts a new one. Copy: Ctrl+Shift+C; paste: Ctrl+Shift+V; interrupt: Ctrl+C." onClick={() => setTerminalVersion((version) => version + 1)}>Restart terminal</button>
               {folderPath && <button className="folder-retry" title={`Ends the current shell and starts in ${folderPath}`} onClick={() => { setTerminalFolder(folderPath); setTerminalVersion((version) => version + 1); }}>Restart in folder</button>}
               <span role="status">{terminalStatus}</span>
             </div>

@@ -34,6 +34,24 @@ export default function TerminalPanel({ onStatus, cwd }: { onStatus: (status: st
     const report = (error: unknown) => {
       if (!disposed) terminal.writeln(`\r\nTerminal error: ${String(error)}`);
     };
+    terminal.attachCustomKeyEventHandler((event) => {
+      const key = event.key.toLowerCase();
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && (key === "c" || key === "v")) {
+        if (event.type === "keydown") {
+          event.preventDefault();
+          if (key === "c") {
+            const selected = terminal.getSelection();
+            if (selected) void navigator.clipboard.writeText(selected).catch(report);
+          } else if (connected) {
+            void navigator.clipboard.readText().then((text) => {
+              if (!disposed && connected) terminal.paste(text);
+            }).catch(report);
+          }
+        }
+        return false;
+      }
+      return true;
+    });
     let writes = Promise.resolve();
     const input = terminal.onData((data) => {
       if (connected) writes = writes.then(async () => {
@@ -67,7 +85,7 @@ export default function TerminalPanel({ onStatus, cwd }: { onStatus: (status: st
       onStatus("Connecting");
       const output = new Channel<{ type: "output"; data: number[] } | { type: "exit" } | { type: "error"; data: string }>();
       output.onmessage = (event) => {
-        if (disposed) return;
+        if (disposed || exited) return;
         if (event.type === "output") {
           connected = true;
           terminal.options.disableStdin = false;
