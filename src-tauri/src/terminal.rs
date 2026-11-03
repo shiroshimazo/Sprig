@@ -3,7 +3,10 @@ use serde::Serialize;
 use std::{
     collections::HashMap,
     io::{Read, Write},
-    sync::Mutex,
+    sync::{
+        Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 use tauri::{Manager, ipc::Channel};
 use tauri_plugin_fs::FsExt;
@@ -21,7 +24,7 @@ impl Drop for Session {
 }
 
 #[derive(Default)]
-pub struct Terminals(Mutex<HashMap<String, Session>>);
+pub struct Terminals(Mutex<HashMap<String, Session>>, AtomicBool);
 
 #[derive(Clone, Serialize)]
 #[serde(tag = "type", content = "data", rename_all = "camelCase")]
@@ -55,6 +58,9 @@ pub async fn terminal_start(
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<Terminals>();
         let mut sessions = state.0.lock().map_err(|e| e.to_string())?;
+        if state.1.load(Ordering::SeqCst) {
+            return Err("The application is closing.".into());
+        }
         if sessions.contains_key(&id) || sessions.len() >= 4 {
             return Err("Terminal session limit reached.".into());
         }
@@ -117,9 +123,13 @@ pub async fn terminal_start(
                     }
                 }
             }
-            if let Ok(mut sessions) = app.state::<Terminals>().0.lock() {
-                sessions.remove(&id);
-            }
+            let removed = app
+                .state::<Terminals>()
+                .0
+                .lock()
+                .ok()
+                .and_then(|mut sessions| sessions.remove(&id));
+            drop(removed);
             let _ = child.wait();
             let _ = output.send(TerminalEvent::Exit);
         });
@@ -162,19 +172,58 @@ pub fn terminal_resize(
 
 #[tauri::command]
 pub fn terminal_stop(state: tauri::State<Terminals>, id: String) -> Result<(), String> {
-    state.0.lock().map_err(|e| e.to_string())?.remove(&id);
+    let removed = state.0.lock().map_err(|e| e.to_string())?.remove(&id);
+    drop(removed);
     Ok(())
 }
 
 pub fn stop_all(app: &tauri::AppHandle) {
-    if let Ok(mut sessions) = app.state::<Terminals>().0.lock() {
-        sessions.clear();
-    }
+    let state = app.state::<Terminals>();
+    state.1.store(true, Ordering::SeqCst);
+    let removed = state
+        .0
+        .lock()
+        .ok()
+        .map(|mut sessions| std::mem::take(&mut *sessions));
+    drop(removed);
 }
 
 #[cfg(all(test, windows))]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dropping_session_terminates_shell() {
+        let pair = native_pty_system().openpty(size(80, 24).unwrap()).unwrap();
+        let writer = pair.master.take_writer().unwrap();
+        let mut command = CommandBuilder::new("powershell.exe");
+        command.args([
+            "-NoLogo",
+            "-NoProfile",
+            "-Command",
+            "Start-Sleep -Seconds 60",
+        ]);
+        let mut child = pair.slave.spawn_command(command).unwrap();
+        drop(pair.slave);
+        let session = Session {
+            master: pair.master,
+            writer,
+            killer: child.clone_killer(),
+        };
+        drop(session);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            if child.try_wait().unwrap().is_some() {
+                break;
+            }
+            if std::time::Instant::now() >= deadline {
+                let _ = child.kill();
+                let _ = child.wait();
+                panic!("Session cleanup did not terminate shell");
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+    }
 
     #[test]
     fn powershell_accepts_input_and_returns_output_through_pty() {
