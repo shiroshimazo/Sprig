@@ -6,6 +6,7 @@ use std::{
     sync::Mutex,
 };
 use tauri::{Manager, ipc::Channel};
+use tauri_plugin_fs::FsExt;
 
 struct Session {
     master: Box<dyn MasterPty + Send>,
@@ -49,6 +50,7 @@ pub async fn terminal_start(
     cols: u16,
     rows: u16,
     output: Channel<TerminalEvent>,
+    cwd: Option<std::path::PathBuf>,
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<Terminals>();
@@ -66,6 +68,19 @@ pub async fn terminal_start(
         #[cfg(not(windows))]
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".into());
         let mut command = CommandBuilder::new(shell);
+        if let Some(path) = cwd {
+            let scope = app.fs_scope();
+            if !scope.is_allowed(&path) {
+                return Err("Select the working folder through Open Folder first.".into());
+            }
+            let resolved = path
+                .canonicalize()
+                .map_err(|e| format!("Cannot access working folder: {e}"))?;
+            if !resolved.is_dir() || !scope.is_allowed(&resolved) {
+                return Err("Working folder is unavailable or outside the selected scope.".into());
+            }
+            command.cwd(resolved);
+        }
         #[cfg(windows)]
         command.arg("-NoLogo");
         command.env("TERM", "xterm-256color");
@@ -163,10 +178,14 @@ mod tests {
 
     #[test]
     fn powershell_accepts_input_and_returns_output_through_pty() {
+        let folder = tempfile::tempdir().unwrap();
+        let working = folder.path().join("project with spaces");
+        std::fs::create_dir(&working).unwrap();
         let pair = native_pty_system().openpty(size(80, 24).unwrap()).unwrap();
         let mut reader = pair.master.try_clone_reader().unwrap();
         let mut writer = pair.master.take_writer().unwrap();
         let mut command = CommandBuilder::new("powershell.exe");
+        command.cwd(&working);
         command.args([
             "-NoLogo",
             "-NoProfile",
@@ -177,7 +196,7 @@ mod tests {
         drop(pair.slave);
         pair.master.resize(size(100, 30).unwrap()).unwrap();
         writer
-            .write_all(b"Write-Output ('PTY_' + 'SUCCESS'); exit\r\n")
+            .write_all(b"Write-Output ('CWD=' + (Get-Location).Path); Write-Output ('PTY_' + 'SUCCESS'); exit\r\n")
             .unwrap();
         writer.flush().unwrap();
         let (send, receive) = std::sync::mpsc::channel();
@@ -204,6 +223,7 @@ mod tests {
         let _ = child.wait();
         let output = result.expect("PowerShell output timed out");
         assert!(String::from_utf8_lossy(&output).contains("PTY_SUCCESS"));
+        assert!(String::from_utf8_lossy(&output).contains(&format!("CWD={}", working.display())));
         assert!(size(0, 24).is_err());
     }
 }

@@ -14,6 +14,8 @@ function App() {
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [terminalVisible, setTerminalVisible] = useState(true);
   const [terminalStatus, setTerminalStatus] = useState("Not connected");
+  const [terminalFolder, setTerminalFolder] = useState<string | null>(null);
+  const [terminalVersion, setTerminalVersion] = useState(0);
   const [sidebarWidth, setSidebarWidth] = useState(22);
   const [terminalHeight, setTerminalHeight] = useState(28);
   const [filePath, setFilePath] = useState<string | null>(null);
@@ -286,9 +288,10 @@ function App() {
           <section id="terminal-panel" className="terminal" hidden={!terminalVisible} aria-labelledby="terminal-heading">
             <div className="panel-header">
               <h2 id="terminal-heading">Terminal</h2>
+              {folderPath && <button className="folder-retry" title={`Ends the current shell and starts in ${folderPath}`} onClick={() => { setTerminalFolder(folderPath); setTerminalVersion((version) => version + 1); }}>Restart in folder</button>}
               <span role="status">{terminalStatus}</span>
             </div>
-            <TerminalPanel onStatus={setTerminalStatus} />
+            <TerminalPanel key={terminalVersion} onStatus={setTerminalStatus} cwd={terminalFolder} />
           </section>
         </main>
       </div>

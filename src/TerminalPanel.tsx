@@ -4,7 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Channel, invoke, isTauri } from "@tauri-apps/api/core";
 import "@xterm/xterm/css/xterm.css";
 
-export default function TerminalPanel({ onStatus }: { onStatus: (status: string) => void }) {
+export default function TerminalPanel({ onStatus, cwd }: { onStatus: (status: string) => void; cwd: string | null }) {
   const container = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -69,7 +69,7 @@ export default function TerminalPanel({ onStatus }: { onStatus: (status: string)
           terminal.writeln("\r\nShell exited.");
         }
       };
-      void invoke("terminal_start", { id, cols: terminal.cols, rows: terminal.rows, output }).then(async () => {
+      void invoke("terminal_start", { id, cols: terminal.cols, rows: terminal.rows, output, cwd }).then(async () => {
         if (disposed) { await invoke("terminal_stop", { id }); return; }
         if (exited) return;
         connected = true;
@@ -90,7 +90,7 @@ export default function TerminalPanel({ onStatus }: { onStatus: (status: string)
       observer.disconnect();
       terminal.dispose();
     };
-  }, [onStatus]);
+  }, [onStatus, cwd]);
 
   return <div ref={container} className="terminal-content" aria-label="Terminal output" />;
 }
