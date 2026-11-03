@@ -45,11 +45,12 @@ function App() {
     const document = path ? documents.current.get(path) : undefined;
     if (!path || !document || saving.current) return false;
     const content = document.current;
+    const expectedContent = document.saved;
     saving.current = true;
     setSavePending(true);
     setSaveError(null);
     try {
-      await invoke("save_file", { path, content });
+      await invoke("save_file", { path, content, expectedContent });
       document.saved = content;
       if (activePath.current === path) setFileContent(content);
       return document.current === content;

@@ -8,7 +8,20 @@ use tauri_plugin_fs::FsExt;
 
 const MAX_FILE_BYTES: u64 = 10 * 1024 * 1024;
 
-fn write_text(path: &Path, content: &str) -> Result<(), String> {
+fn check_unchanged(path: &Path, expected: &str) -> Result<(), String> {
+    let file =
+        fs::File::open(path).map_err(|e| format!("Cannot verify file before saving: {e}"))?;
+    let mut bytes = Vec::new();
+    file.take(MAX_FILE_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| format!("Cannot verify file before saving: {e}"))?;
+    if bytes != expected.as_bytes() {
+        return Err("File changed outside the app. Save was canceled; your edits are still available. Copy your edits before reopening the app to load the disk version.".into());
+    }
+    Ok(())
+}
+
+fn write_text(path: &Path, content: &str, expected: &str) -> Result<(), String> {
     if content.len() as u64 > MAX_FILE_BYTES {
         return Err("Files larger than 10 MiB are not supported yet.".into());
     }
@@ -16,6 +29,7 @@ fn write_text(path: &Path, content: &str) -> Result<(), String> {
     if !metadata.is_file() || metadata.permissions().readonly() {
         return Err("This file is not writable.".into());
     }
+    check_unchanged(path, expected)?;
     let parent = path.parent().ok_or("File has no parent folder.")?;
     let mut temporary = tempfile::NamedTempFile::new_in(parent).map_err(|e| e.to_string())?;
     temporary
@@ -26,6 +40,7 @@ fn write_text(path: &Path, content: &str) -> Result<(), String> {
         .set_permissions(metadata.permissions())
         .map_err(|e| e.to_string())?;
     temporary.as_file().sync_all().map_err(|e| e.to_string())?;
+    check_unchanged(path, expected)?;
     temporary
         .persist(path)
         .map_err(|e| format!("Cannot replace file: {e}"))?;
@@ -37,9 +52,10 @@ pub async fn save_file(
     app: tauri::AppHandle,
     path: PathBuf,
     content: String,
+    expected_content: String,
 ) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        write_text(&authorized_path(&app, &path)?, &content)
+        write_text(&authorized_path(&app, &path)?, &content, &expected_content)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -143,12 +159,34 @@ mod tests {
         let folder = tempfile::tempdir().unwrap();
         let path = folder.path().join("file.txt");
         fs::write(&path, "before").unwrap();
-        write_text(&path, "after\r\n").unwrap();
+        write_text(&path, "after\r\n", "before").unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), "after\r\n");
-        assert!(write_text(&path, &"x".repeat(MAX_FILE_BYTES as usize + 1)).is_err());
+        assert!(write_text(&path, &"x".repeat(MAX_FILE_BYTES as usize + 1), "after\r\n").is_err());
         assert_eq!(fs::read_to_string(&path).unwrap(), "after\r\n");
-        write_text(&path, "").unwrap();
+        write_text(&path, "", "after\r\n").unwrap();
         assert_eq!(fs::read(&path).unwrap(), b"");
+    }
+
+    #[test]
+    fn external_changes_and_deleted_files_are_not_overwritten() {
+        let folder = tempfile::tempdir().unwrap();
+        let path = folder.path().join("file.txt");
+        for changed in ["edited", "before\r\n", "", "BEFORE"] {
+            fs::write(&path, changed).unwrap();
+            assert!(
+                write_text(&path, "my draft", "before")
+                    .unwrap_err()
+                    .contains("changed outside")
+            );
+            assert_eq!(fs::read_to_string(&path).unwrap(), changed);
+        }
+        fs::write(&path, [0xff, 0x00]).unwrap();
+        assert!(write_text(&path, "my draft", "before").is_err());
+        assert_eq!(fs::read(&path).unwrap(), [0xff, 0x00]);
+        fs::remove_file(&path).unwrap();
+        assert!(write_text(&path, "my draft", "before").is_err());
+        assert!(!path.exists());
+        assert_eq!(fs::read_dir(folder.path()).unwrap().count(), 0);
     }
 
     #[test]
