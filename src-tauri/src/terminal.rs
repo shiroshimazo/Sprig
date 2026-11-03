@@ -162,7 +162,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn powershell_runs_inside_pty() {
+    fn powershell_accepts_input_and_returns_output_through_pty() {
         let pair = native_pty_system().openpty(size(80, 24).unwrap()).unwrap();
         let mut reader = pair.master.try_clone_reader().unwrap();
         let mut writer = pair.master.take_writer().unwrap();
@@ -171,11 +171,15 @@ mod tests {
             "-NoLogo",
             "-NoProfile",
             "-Command",
-            "Write-Output ('PTY_' + 'SUCCESS')",
+            "$line = [Console]::ReadLine(); Invoke-Expression $line",
         ]);
         let mut child = pair.slave.spawn_command(command).unwrap();
         drop(pair.slave);
         pair.master.resize(size(100, 30).unwrap()).unwrap();
+        writer
+            .write_all(b"Write-Output ('PTY_' + 'SUCCESS'); exit\r\n")
+            .unwrap();
+        writer.flush().unwrap();
         let (send, receive) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
             let mut output = Vec::new();

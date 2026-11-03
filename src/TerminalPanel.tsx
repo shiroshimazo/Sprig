@@ -36,7 +36,9 @@ export default function TerminalPanel({ onStatus }: { onStatus: (status: string)
     };
     let writes = Promise.resolve();
     const input = terminal.onData((data) => {
-      if (connected) writes = writes.then(() => invoke<void>("terminal_write", { id, data })).catch(report);
+      if (connected) writes = writes.then(async () => {
+        if (!disposed && connected) await invoke<void>("terminal_write", { id, data });
+      }).catch(report);
     });
     const dimensions = terminal.onResize(({ cols, rows }) => {
       if (connected) void invoke("terminal_resize", { id, cols, rows }).catch(report);
