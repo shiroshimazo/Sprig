@@ -7,6 +7,7 @@ import { CommandLineIcon, File01Icon, FolderOpenIcon, SidebarLeftIcon } from "@h
 import ResizeHandle from "./ResizeHandle";
 import FolderTree from "./FolderTree";
 import CodeEditor from "./CodeEditor";
+import TerminalPanel from "./TerminalPanel";
 import "./App.css";
 
 function App() {
@@ -286,7 +287,7 @@ function App() {
               <h2 id="terminal-heading">Terminal</h2>
               <span>Not connected</span>
             </div>
-            <p className="terminal-empty">Shell connection is coming soon.</p>
+            <TerminalPanel />
           </section>
         </main>
       </div>

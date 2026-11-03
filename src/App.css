@@ -392,6 +392,17 @@ p {
   font-size: 12px;
 }
 
+.terminal-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 8px;
+}
+
+.terminal-content .xterm {
+  height: 100%;
+}
+
 @media (max-width: 480px) {
   .panel-header,
   .sidebar-empty,
