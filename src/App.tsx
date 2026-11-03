@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { CommandLineIcon, File01Icon, FolderOpenIcon, SidebarLeftIcon } from "@hugeicons/core-free-icons";
 import ResizeHandle from "./ResizeHandle";
@@ -34,10 +35,15 @@ function App() {
   const saving = useRef(false);
   const [savePending, setSavePending] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const saveFile = useCallback(async () => {
-    const path = activePath.current;
+  const [discarded, setDiscarded] = useState<{ path: string } | null>(null);
+  const [promptPath, setPromptPath] = useState<string | null>(null);
+  const prompt = useRef<HTMLDialogElement>(null);
+  const answer = useRef<((choice: "save" | "discard" | "cancel") => void) | null>(null);
+  const guarding = useRef(false);
+  const saveFile = useCallback(async (requestedPath?: string) => {
+    const path = requestedPath ?? activePath.current;
     const document = path ? documents.current.get(path) : undefined;
-    if (!path || !document || saving.current) return;
+    if (!path || !document || saving.current) return false;
     const content = document.current;
     saving.current = true;
     setSavePending(true);
@@ -46,13 +52,73 @@ function App() {
       await invoke("save_file", { path, content });
       document.saved = content;
       if (activePath.current === path) setFileContent(content);
+      return document.current === content;
     } catch (error) {
       setSaveError(`Cannot save ${path}: ${error instanceof Error ? error.message : String(error)}`);
+      return false;
     } finally {
       saving.current = false;
       setSavePending(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (promptPath) prompt.current?.showModal();
+  }, [promptPath]);
+
+  function respond(choice: "save" | "discard" | "cancel") {
+    prompt.current?.close();
+    setPromptPath(null);
+    answer.current?.(choice);
+    answer.current = null;
+  }
+
+  const confirmLeaving = useCallback(async (paths: string[]) => {
+    if (guarding.current || saving.current) return false;
+    guarding.current = true;
+    try {
+      for (const path of paths) {
+        const document = documents.current.get(path);
+        if (!document || document.current === document.saved) continue;
+        const choice = await new Promise<"save" | "discard" | "cancel">((resolve) => {
+          answer.current = resolve;
+          setPromptPath(path);
+        });
+        if (choice === "cancel") return false;
+        if (choice === "save" && !await saveFile(path)) return false;
+        if (choice === "discard") {
+          document.current = document.saved;
+          setDiscarded({ path });
+          if (activePath.current === path) setCurrentContent(document.saved);
+        }
+      }
+      return true;
+    } finally { guarding.current = false; }
+  }, [saveFile]);
+
+  useEffect(() => {
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (saving.current || [...documents.current.values()].some((document) => document.current !== document.saved)) {
+        event.preventDefault();
+        event.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    if (isTauri()) {
+      const appWindow = getCurrentWindow();
+      void appWindow.onCloseRequested(async (event) => {
+        event.preventDefault();
+        if (await confirmLeaving([...documents.current.keys()])) {
+          try { await appWindow.destroy(); }
+          catch (error) { setSaveError(`Cannot close window: ${String(error)}`); }
+        }
+      }).then((stop) => { if (disposed) stop(); else unlisten = stop; })
+        .catch((error) => setSaveError(`Cannot register close protection: ${String(error)}`));
+    }
+    return () => { disposed = true; unlisten?.(); window.removeEventListener("beforeunload", beforeUnload); };
+  }, [confirmLeaving]);
 
   useEffect(() => {
     const handleSave = (event: KeyboardEvent) => {
@@ -66,6 +132,7 @@ function App() {
   }, [saveFile]);
 
   async function openFile(path: string) {
+    if (path !== activePath.current && !await confirmLeaving(activePath.current ? [activePath.current] : [])) return;
     const request = ++readRequest.current;
     setLoadingPath(path);
     setFileError(null);
@@ -106,6 +173,7 @@ function App() {
       });
       if (selected !== null) {
         if (directory) {
+          if (!await confirmLeaving([...documents.current.keys()])) return;
           setFolderPath(selected);
           setSidebarVisible(true);
         } else {
@@ -121,6 +189,16 @@ function App() {
   }
   return (
     <div className="ide">
+      <dialog ref={prompt} className="unsaved-dialog" aria-labelledby="unsaved-title" onCancel={(event) => { event.preventDefault(); respond("cancel"); }}>
+        <h2 id="unsaved-title">Save changes?</h2>
+        <p>{promptPath}</p>
+        <p>Save your edits or discard them before continuing.</p>
+        <div>
+          <button onClick={() => respond("save")}>Save</button>
+          <button onClick={() => respond("discard")}>Discard</button>
+          <button autoFocus onClick={() => respond("cancel")}>Cancel</button>
+        </div>
+      </dialog>
       <header className="toolbar">
         <h1>Personal IDE</h1>
         <div className="file-actions" aria-label="File actions">
@@ -184,7 +262,7 @@ function App() {
             {filePath ? (
               <>
                 <p className="file-message">Ctrl+S: save; Ctrl+Z: undo; Ctrl+Y: redo; Ctrl+F: find/replace. Closing the app discards unsaved edits.</p>
-                <CodeEditor content={fileContent} path={filePath} onChange={updateContent} />
+                <CodeEditor content={fileContent} path={filePath} onChange={updateContent} discarded={discarded} />
               </>
             ) : (
               <div className="editor-empty"><p>Select a file to get started.</p></div>

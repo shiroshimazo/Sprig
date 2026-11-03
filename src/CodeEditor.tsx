@@ -23,12 +23,15 @@ function languageFor(path: string) {
   }
 }
 
-export default function CodeEditor({ content, path, onChange }: { content: string; path: string; onChange: (content: string) => void }) {
+export default function CodeEditor({ content, path, onChange, discarded }: { content: string; path: string; onChange: (content: string) => void; discarded: { path: string } | null }) {
   const container = useRef<HTMLDivElement>(null);
+  const lastDiscard = useRef(discarded);
   const sessions = useRef(new Map<string, { state: EditorState; top: number; left: number }>());
 
   useEffect(() => {
     if (!container.current) return;
+    if (discarded && discarded !== lastDiscard.current) sessions.current.delete(discarded.path);
+    lastDiscard.current = discarded;
     const cached = sessions.current.get(path);
     const lineEndings = preserveLineEndings(content);
     const view = new EditorView({
@@ -90,7 +93,7 @@ export default function CodeEditor({ content, path, onChange }: { content: strin
       });
       view.destroy();
     };
-  }, [content, path, onChange]);
+  }, [content, path, onChange, discarded]);
 
   return <div className="code-editor" ref={container} />;
 }
