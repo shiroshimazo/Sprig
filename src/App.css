@@ -107,6 +107,44 @@ p {
   background: #303030;
 }
 
+.file-actions { position: relative; }
+
+.file-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 180px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px #000c;
+}
+
+.file-menu button {
+  justify-content: flex-start;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.file-menu button:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.file-menu button svg {
+  flex-shrink: 0;
+}
+
 .toolbar {
   display: flex;
   align-items: center;

@@ -4,7 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { animate } from "animejs";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { CommandLineIcon, File01Icon, FolderOpenIcon, SidebarLeftIcon } from "@hugeicons/core-free-icons";
+import { CommandLineIcon, File01Icon, FolderOpenIcon, Hamburger01Icon, SidebarLeftIcon } from "@hugeicons/core-free-icons";
 import ResizeHandle from "./ResizeHandle";
 import FolderTree from "./FolderTree";
 import CodeEditor from "./CodeEditor";
@@ -22,6 +22,9 @@ function App() {
   const [dialogPending, setDialogPending] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const dialogActive = useRef(false);
+  const [fileMenuOpen, setFileMenuOpen] = useState(false);
+  const fileMenuRef = useRef<HTMLDivElement>(null);
+  const fileMenuButton = useRef<HTMLButtonElement>(null);
   const [fileContent, setFileContent] = useState("");
   const [currentContent, setCurrentContent] = useState("");
   const documents = useRef(new Map<string, { saved: string; current: string }>());
@@ -149,6 +152,25 @@ function App() {
     return () => window.removeEventListener("keydown", handleSave);
   }, [saveFile]);
 
+  useEffect(() => {
+    if (!fileMenuOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!fileMenuRef.current?.contains(event.target as Node)) setFileMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setFileMenuOpen(false);
+        fileMenuButton.current?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [fileMenuOpen]);
+
   async function openFile(path: string) {
     if (path !== activePath.current && !await confirmLeaving(activePath.current ? [activePath.current] : [])) return;
     const request = ++readRequest.current;
@@ -219,20 +241,33 @@ function App() {
       </dialog>
       <header className="toolbar">
         <h1>Personal IDE</h1>
-        <div className="file-actions" aria-label="File actions">
-          <button disabled={!filePath || savePending} title="Save (Ctrl+S)" onClick={() => void saveFile()}>{savePending ? "Saving..." : "Save"}</button>
-          <span title="Open file">
-            <button disabled={dialogPending} aria-label="Open file" title="Open file" onClick={() => selectPath(false)}>
-              <HugeiconsIcon icon={File01Icon} size={13} aria-hidden="true" focusable="false" />
-              Open File
-            </button>
-          </span>
-          <span title="Open folder">
-            <button disabled={dialogPending} aria-label="Open folder" title="Open folder" onClick={() => selectPath(true)}>
-              <HugeiconsIcon icon={FolderOpenIcon} size={13} aria-hidden="true" focusable="false" />
-              Open Folder
-            </button>
-          </span>
+        <div className="file-actions" aria-label="File actions" ref={fileMenuRef}>
+          <button
+            ref={fileMenuButton}
+            aria-label={fileMenuOpen ? "Close file menu" : "Open file menu"}
+            aria-haspopup="menu"
+            aria-expanded={fileMenuOpen}
+            aria-controls="file-menu"
+            title="File menu"
+            onClick={() => setFileMenuOpen((open) => !open)}
+          >
+            <HugeiconsIcon icon={Hamburger01Icon} size={13} aria-hidden="true" focusable="false" />
+          </button>
+          {fileMenuOpen && (
+            <div className="file-menu" id="file-menu" role="menu" aria-label="File actions">
+              <button role="menuitem" disabled={!filePath || savePending} onClick={() => { setFileMenuOpen(false); void saveFile(); }}>
+                {savePending ? "Saving..." : "Save"}
+              </button>
+              <button role="menuitem" disabled={dialogPending} onClick={() => { setFileMenuOpen(false); void selectPath(false); }}>
+                <HugeiconsIcon icon={File01Icon} size={13} aria-hidden="true" focusable="false" />
+                Open File
+              </button>
+              <button role="menuitem" disabled={dialogPending} onClick={() => { setFileMenuOpen(false); void selectPath(true); }}>
+                <HugeiconsIcon icon={FolderOpenIcon} size={13} aria-hidden="true" focusable="false" />
+                Open Folder
+              </button>
+            </div>
+          )}
           {dialogPending && <span className="toolbar-note" role="status">Dialog open…</span>}
         </div>
         <div className="panel-actions" aria-label="Panel visibility">
@@ -258,7 +293,7 @@ function App() {
       </header>
 
       {dialogError && <p className="dialog-error" role="alert">{dialogError}</p>}
-      <div className="workspace" style={{ gridTemplateColumns: sidebarVisible ? `${sidebarWidth}% 6px minmax(0, 1fr)` : "minmax(0, 1fr)" }}>
+      <div className="workspace" style={{ gridTemplateColumns: sidebarVisible ? `${sidebarWidth}% 4px minmax(0, 1fr)` : "minmax(0, 1fr)" }}>
         <aside id="files-panel" className="sidebar" hidden={!sidebarVisible} aria-labelledby="files-heading">
           <div className="panel-header">
             <h2 id="files-heading">Files</h2>
@@ -267,7 +302,7 @@ function App() {
         </aside>
         {sidebarVisible && <ResizeHandle panel="files-panel" label="Resize sidebar" orientation="vertical" value={sidebarWidth} onResize={setSidebarWidth} />}
 
-        <main className="workbench" style={{ gridTemplateRows: terminalVisible ? `minmax(0, 1fr) 6px ${terminalHeight}%` : "minmax(0, 1fr)" }}>
+        <main className="workbench" style={{ gridTemplateRows: terminalVisible ? `minmax(0, 1fr) 4px ${terminalHeight}%` : "minmax(0, 1fr)" }}>
           <section className="editor" aria-labelledby="editor-heading">
             <div className="panel-header">
               <h2 id="editor-heading">Editor</h2>
