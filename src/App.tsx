@@ -22,6 +22,7 @@ function App() {
   const [sidebarWidth, setSidebarWidth] = useState(22);
   const [terminalHeight, setTerminalHeight] = useState(28);
   const [filePath, setFilePath] = useState<string | null>(null);
+  const [openTabs, setOpenTabs] = useState<string[]>([]);
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
   const [folderPath, setFolderPath] = useState<string | null>(null);
   const nextTerminalNumber = useRef(2);
@@ -51,15 +52,15 @@ function App() {
   const fileMenuRef = useRef<HTMLDivElement>(null);
   const fileMenuButton = useRef<HTMLButtonElement>(null);
   const [fileContent, setFileContent] = useState("");
-  const [currentContent, setCurrentContent] = useState("");
+  const [, setContentRevision] = useState(0);
   const documents = useRef(new Map<string, { saved: string; current: string }>());
   const activePath = useRef<string | null>(null);
   const updateContent = useCallback((content: string) => {
     const document = activePath.current ? documents.current.get(activePath.current) : undefined;
     if (document) document.current = content;
-    setCurrentContent(content);
+    setContentRevision((revision) => revision + 1);
   }, []);
-  const isDirty = currentContent !== fileContent;
+
   const [loadingPath, setLoadingPath] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const readRequest = useRef(0);
@@ -136,7 +137,9 @@ function App() {
         if (choice === "discard") {
           document.current = document.saved;
           setDiscarded({ path });
-          if (activePath.current === path) setCurrentContent(document.saved);
+          if (activePath.current === path) {
+            setContentRevision((revision) => revision + 1);
+          }
         }
       }
       return true;
@@ -197,27 +200,59 @@ function App() {
     };
   }, [fileMenuOpen]);
 
+  const fileTabId = (path: string) => `file-tab-${encodeURIComponent(path)}`;
+
   async function openFile(path: string) {
-    if (path !== activePath.current && !await confirmLeaving(activePath.current ? [activePath.current] : [])) return;
+    if (!openTabs.includes(path)) setOpenTabs((tabs) => [...tabs, path]);
+    await activateFile(path);
+  }
+
+  async function activateFile(path: string) {
+    if (path === activePath.current) return;
+    const cached = documents.current.get(path);
+    activePath.current = path;
+    setFilePath(path);
+    if (cached) {
+      setFileContent(cached.saved);
+      setContentRevision((revision) => revision + 1);
+      setFileError(null);
+      return;
+    }
     const request = ++readRequest.current;
     setLoadingPath(path);
     setFileError(null);
     try {
-      const cached = documents.current.get(path);
-      const content = cached?.saved ?? await invoke<string>("read_file", { path });
+      const content = await invoke<string>("read_file", { path });
       if (request !== readRequest.current) return;
-      const document = cached ?? { saved: content, current: content };
+      const document = { saved: content, current: content };
       documents.current.set(path, document);
-      activePath.current = path;
-      setFilePath(path);
       setFileContent(content);
-      setCurrentContent(document.current);
+      setContentRevision((revision) => revision + 1);
     } catch (error) {
       if (request === readRequest.current) {
         setFileError(`Cannot open ${path}: ${error instanceof Error ? error.message : String(error)}`);
       }
     } finally {
       if (request === readRequest.current) setLoadingPath(null);
+    }
+  }
+
+  async function closeTab(path: string) {
+    const leaving = await confirmLeaving([path]);
+    if (!leaving) return;
+    const index = openTabs.indexOf(path);
+    const next = openTabs.filter((tab) => tab !== path);
+    setOpenTabs(next);
+    if (activePath.current === path) {
+      const neighbor = next[Math.min(Math.max(index, 0), next.length - 1)];
+      if (neighbor !== undefined) {
+        await activateFile(neighbor);
+      } else {
+        activePath.current = null;
+        setFilePath(null);
+        setFileContent("");
+        setFileError(null);
+      }
     }
   }
 
@@ -335,11 +370,53 @@ function App() {
         {sidebarVisible && <ResizeHandle panel="files-panel" label="Resize sidebar" orientation="vertical" value={sidebarWidth} onResize={setSidebarWidth} />}
 
         <main className="workbench" style={{ gridTemplateRows: terminalVisible ? `minmax(0, 1fr) 4px ${terminalHeight}%` : "minmax(0, 1fr)" }}>
-          <section className="editor" aria-labelledby="editor-heading">
+          <section id="editor-pane" className="editor" role="tabpanel" aria-labelledby={filePath ? fileTabId(filePath) : "editor-heading"}>
             <div className="panel-header">
               <h2 id="editor-heading">Editor</h2>
-              <span className="selected-path" title={filePath ?? undefined}>{filePath?.split(/[\\/]/).pop() ?? "No file open"}</span>
-              {filePath && <span role="status">{isDirty ? "Unsaved changes" : "Unchanged"}</span>}
+              {openTabs.length > 0 && (
+                <div className="file-tabs" role="tablist" aria-label="Open files">
+                  {openTabs.map((tabPath) => {
+                    const doc = documents.current.get(tabPath);
+                    const dirty = doc ? doc.current !== doc.saved : false;
+                    const selected = tabPath === filePath;
+                    const name = tabPath.split(/[\\/]/).filter(Boolean).pop() ?? tabPath;
+                    const id = fileTabId(tabPath);
+                    return (
+                      <div key={tabPath} className={`file-tab${selected ? " file-tab--active" : ""}`}>
+                        <button
+                          role="tab"
+                          id={id}
+                          aria-selected={selected}
+                          aria-controls="editor-pane"
+                          tabIndex={selected ? 0 : -1}
+                          className="file-tab-select"
+                          title={tabPath}
+                          onClick={() => void activateFile(tabPath)}
+                          onKeyDown={(event) => {
+                            const current = openTabs.indexOf(tabPath);
+                            let target: number | null = null;
+                            if (event.key === "ArrowRight") target = (current + 1) % openTabs.length;
+                            else if (event.key === "ArrowLeft") target = (current - 1 + openTabs.length) % openTabs.length;
+                            else if (event.key === "Home") target = 0;
+                            else if (event.key === "End") target = openTabs.length - 1;
+                            if (target !== null) {
+                              event.preventDefault();
+                              void activateFile(openTabs[target]);
+                              document.getElementById(fileTabId(openTabs[target]))?.focus();
+                            }
+                          }}
+                        >
+                          {dirty && <span className="file-tab-dot" role="img" aria-label="Unsaved changes" />}
+                          <span className="file-tab-name">{name}</span>
+                        </button>
+                        <button className="file-tab-close" aria-label={`Close ${name}`} title={`Close ${name}`} onClick={() => void closeTab(tabPath)}>
+                          <HugeiconsIcon icon={MultiplicationSignIcon} size={13} aria-hidden="true" focusable="false" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
               {filePath && <span className="cursor-position" aria-label={`Line ${cursorPosition.line}, column ${cursorPosition.column}`}>Ln {cursorPosition.line}, Col {cursorPosition.column}</span>}
             </div>
             {loadingPath && <p className="file-message" role="status">Opening {loadingPath}...</p>}

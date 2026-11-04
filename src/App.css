@@ -91,11 +91,6 @@ p {
   overflow-wrap: anywhere;
 }
 
-.selected-path {
-  overflow-wrap: anywhere;
-  min-width: 0;
-}
-
 .sidebar-empty p + p {
   margin-top: 12px;
 }
@@ -662,6 +657,92 @@ p {
 .terminal-tab-add:disabled {
   color: #3f3f3f;
   cursor: default;
+}
+
+.file-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--background);
+}
+
+.file-tab {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  color: var(--text-muted);
+}
+
+.file-tab--active,
+.file-tab:hover {
+  color: var(--text);
+}
+
+.file-tab--active {
+  background: var(--control);
+}
+
+.file-tab-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  max-width: 180px;
+  padding: 0 6px 0 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  border-radius: 4px 0 0 4px;
+  outline: none;
+}
+
+.file-tab-select:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+
+.file-tab-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.file-tab-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #e5c07b;
+}
+
+.file-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 0 4px 4px 0;
+}
+
+.file-tab-close:hover {
+  color: var(--text);
+  background: #303030;
+}
+
+.file-tab-close:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
 }
 
 .terminal-panes {
