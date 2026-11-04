@@ -155,6 +155,29 @@ mod tests {
     use super::*;
 
     #[test]
+    fn unicode_paths_and_readonly_save_failure_preserve_content() {
+        let root = tempfile::tempdir().unwrap();
+        let folder = root.path().join("项目 with spaces");
+        fs::create_dir(&folder).unwrap();
+        let path = folder.join("代码 file.txt");
+        fs::write(&path, "original").unwrap();
+        assert_eq!(read_text(&path).unwrap(), "original");
+        let entries = directory_entries(&folder).unwrap();
+        assert_eq!(entries[0].path, path);
+        assert_eq!(entries[0].name, "代码 file.txt");
+        write_text(&path, "saved 世界", "original").unwrap();
+        let original_permissions = fs::metadata(&path).unwrap().permissions();
+        let mut readonly = original_permissions.clone();
+        readonly.set_readonly(true);
+        fs::set_permissions(&path, readonly).unwrap();
+        let result = write_text(&path, "must not replace", "saved 世界");
+        fs::set_permissions(&path, original_permissions).unwrap();
+        assert!(result.unwrap_err().contains("not writable"));
+        assert_eq!(read_text(&path).unwrap(), "saved 世界");
+        assert_eq!(fs::read_dir(&folder).unwrap().count(), 1);
+    }
+
+    #[test]
     fn open_save_reopen_preserves_exact_bytes() {
         let folder = tempfile::tempdir().unwrap();
         let path = folder.path().join("code with spaces.txt");
