@@ -155,6 +155,32 @@ mod tests {
     use super::*;
 
     #[test]
+    fn open_save_reopen_preserves_exact_bytes() {
+        let folder = tempfile::tempdir().unwrap();
+        let path = folder.path().join("code with spaces.txt");
+        for original in [
+            "",
+            "no final newline",
+            "one\ntwo\n",
+            "one\r\ntwo\r\n",
+            "one\rtwo\r",
+            "one\r\ntwo\nthree\r",
+            "\u{feff}hello 世界\r\n",
+        ] {
+            fs::write(&path, original.as_bytes()).unwrap();
+            let opened = read_text(&path).unwrap();
+            assert_eq!(opened, original);
+            let edited = format!("edited {opened}");
+            write_text(&path, &edited, &opened).unwrap();
+            assert_eq!(fs::read(&path).unwrap(), edited.as_bytes());
+            let reopened = read_text(&path).unwrap();
+            assert_eq!(reopened, edited);
+            write_text(&path, original, &reopened).unwrap();
+            assert_eq!(fs::read(&path).unwrap(), original.as_bytes());
+        }
+    }
+
+    #[test]
     fn saves_and_rejects_oversized_content_without_changing_file() {
         let folder = tempfile::tempdir().unwrap();
         let path = folder.path().join("file.txt");
