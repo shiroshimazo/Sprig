@@ -9,6 +9,7 @@ import { tags } from "@lezer/highlight";
 import { javascript } from "@codemirror/lang-javascript";
 import { java } from "@codemirror/lang-java";
 import { sql } from "@codemirror/lang-sql";
+import { css } from "@codemirror/lang-css";
 import { preserveLineEndings } from "./lineEndings";
 
 // One Dark Theme by Joshua Azemoh — applied to the code editor only.
@@ -25,7 +26,9 @@ const highlighting = HighlightStyle.define([
   { tag: tags.modifier, color: "#c678dd" },
   { tag: tags.self, color: "#c678dd" },
   { tag: tags.special(tags.variableName), color: "#d19a66" },
-  { tag: [tags.number, tags.atom, tags.bool, tags.null, tags.literal], color: "#d19a66" },
+  { tag: [tags.number, tags.atom, tags.bool, tags.null, tags.literal, tags.unit], color: "#d19a66" },
+  { tag: tags.color, color: "#56b6c2" },
+  { tag: tags.constant(tags.className), color: "#e5c07b" },
   { tag: [tags.string, tags.processingInstruction], color: "#98c379" },
   { tag: [tags.escape, tags.regexp, tags.special(tags.string)], color: "#56b6c2" },
   { tag: [tags.comment, tags.docComment, tags.meta], color: "#5c6370", fontStyle: "italic" },
@@ -50,6 +53,7 @@ function languageFor(path: string) {
     case "tsx": return javascript({ typescript: true, jsx: true });
     case "java": return java();
     case "sql": return sql();
+    case "css": return css();
     default: return [];
   }
 }
@@ -95,7 +99,7 @@ export default function CodeEditor({ content, path, onChange, onPositionChange, 
           }),
           EditorView.theme({
             "&": { height: "100%", fontSize: "13px", color: "#abb2bf", backgroundColor: "#282c34" },
-            ".cm-scroller": { overflow: "auto", fontFamily: "inherit", lineHeight: "1.5" },
+            ".cm-scroller": { overflow: "auto", fontFamily: '"Cascadia Code", "Cascadia Mono", Consolas, monospace', fontVariantLigatures: "contextual", lineHeight: "1.5" },
             ".cm-cursor, .cm-dropCursor": { borderLeftColor: "#f8f8f0" },
             ".cm-activeLine": { backgroundColor: "#383e4a" },
             ".cm-activeLineGutter": { backgroundColor: "#383e4a", color: "#abb2bf" },
