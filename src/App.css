@@ -384,6 +384,21 @@ p {
   font-size: 12px;
 }
 
+.editor-empty h2 {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.editor-empty > p {
+  max-width: 44ch;
+  color: var(--text-muted);
+}
+
+.empty-actions {
+  justify-content: center;
+  margin-top: 12px;
+}
+
 .terminal {
   background: var(--background);
 }

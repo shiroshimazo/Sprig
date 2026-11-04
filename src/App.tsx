@@ -280,7 +280,20 @@ function App() {
                 <CodeEditor content={fileContent} path={filePath} onChange={updateContent} discarded={discarded} />
               </>
             ) : (
-              <div className="editor-empty"><p>Select a file to get started.</p></div>
+              <div className="editor-empty">
+                <h2>No file open</h2>
+                <p>{folderPath ? "Choose a file from the sidebar, or open another file." : "Open a file to edit, or a folder to browse your code."}</p>
+                <div className="file-actions empty-actions" aria-label="Open a workspace">
+                  <button disabled={dialogPending} onClick={() => void selectPath(false)}>
+                    <HugeiconsIcon icon={File01Icon} size={18} aria-hidden="true" focusable="false" />
+                    Open File
+                  </button>
+                  <button disabled={dialogPending} onClick={() => void selectPath(true)}>
+                    <HugeiconsIcon icon={FolderOpenIcon} size={18} aria-hidden="true" focusable="false" />
+                    Open Folder
+                  </button>
+                </div>
+              </div>
             )}
           </section>
 
