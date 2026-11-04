@@ -4,7 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Channel, invoke, isTauri } from "@tauri-apps/api/core";
 import "@xterm/xterm/css/xterm.css";
 
-export default function TerminalPanel({ onStatus, cwd }: { onStatus: (status: string) => void; cwd: string | null }) {
+export default function TerminalPanel({ cwd }: { cwd: string | null }) {
   const container = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -12,7 +12,7 @@ export default function TerminalPanel({ onStatus, cwd }: { onStatus: (status: st
     if (!element) return;
     const terminal = new Terminal({
       fontFamily: '"Cascadia Mono", Consolas, monospace',
-      fontSize: 15,
+      fontSize: 13,
       lineHeight: 1.5,
       cursorBlink: false,
       disableStdin: true,
@@ -82,7 +82,6 @@ export default function TerminalPanel({ onStatus, cwd }: { onStatus: (status: st
     void document.fonts.ready.then(resize);
     resize();
     if (isTauri()) {
-      onStatus("Connecting");
       const output = new Channel<{ type: "output"; data: number[] } | { type: "exit" } | { type: "error"; data: string }>();
       output.onmessage = (event) => {
         if (disposed || exited) return;
@@ -96,7 +95,6 @@ export default function TerminalPanel({ onStatus, cwd }: { onStatus: (status: st
           exited = true;
           connected = false;
           terminal.options.disableStdin = true;
-          onStatus("Exited");
           terminal.writeln("\r\nShell exited.");
         }
       };
@@ -105,23 +103,21 @@ export default function TerminalPanel({ onStatus, cwd }: { onStatus: (status: st
         if (exited) return;
         connected = true;
         terminal.options.disableStdin = false;
-        onStatus("Connected");
         await syncSize(terminal.cols, terminal.rows);
-      }).catch((error) => { if (!disposed) onStatus("Connection failed"); report(error); });
+      }).catch((error) => { if (!disposed) report(error); });
     } else {
-      onStatus("Desktop app required");
       terminal.writeln("Open the desktop app to start a local shell.");
     }
     return () => {
       disposed = true;
-      if (connected) void invoke("terminal_stop", { id }).catch(() => {});
+      if (isTauri()) void invoke("terminal_stop", { id }).catch(() => {});
       connected = false;
       input.dispose();
       dimensions.dispose();
       observer.disconnect();
       terminal.dispose();
     };
-  }, [onStatus, cwd]);
+  }, [cwd]);
 
   return <div ref={container} className="terminal-content" aria-label="Terminal output" />;
 }

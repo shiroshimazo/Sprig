@@ -73,7 +73,7 @@ export default function CodeEditor({ content, path, onChange, onPositionChange, 
             tabindex: "0",
           }),
           EditorView.theme({
-            "&": { height: "100%", fontSize: "15px", color: "var(--text)", backgroundColor: "var(--background)" },
+            "&": { height: "100%", fontSize: "13px", color: "var(--text)", backgroundColor: "var(--background)" },
             ".cm-scroller": { overflow: "auto", fontFamily: "inherit", lineHeight: "1.5" },
             ".cm-content": { padding: "16px 0" },
             ".cm-line": { padding: "0 16px" },

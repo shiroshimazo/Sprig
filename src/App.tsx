@@ -14,9 +14,6 @@ import "./App.css";
 function App() {
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [terminalVisible, setTerminalVisible] = useState(true);
-  const [terminalStatus, setTerminalStatus] = useState("Not connected");
-  const [terminalFolder, setTerminalFolder] = useState<string | null>(null);
-  const [terminalVersion, setTerminalVersion] = useState(0);
   const [sidebarWidth, setSidebarWidth] = useState(22);
   const [terminalHeight, setTerminalHeight] = useState(28);
   const [filePath, setFilePath] = useState<string | null>(null);
@@ -226,13 +223,13 @@ function App() {
           <button disabled={!filePath || savePending} title="Save (Ctrl+S)" onClick={() => void saveFile()}>{savePending ? "Saving..." : "Save"}</button>
           <span title="Open file">
             <button disabled={dialogPending} aria-label="Open file" title="Open file" onClick={() => selectPath(false)}>
-              <HugeiconsIcon icon={File01Icon} size={15} aria-hidden="true" focusable="false" />
+              <HugeiconsIcon icon={File01Icon} size={13} aria-hidden="true" focusable="false" />
               Open File
             </button>
           </span>
           <span title="Open folder">
             <button disabled={dialogPending} aria-label="Open folder" title="Open folder" onClick={() => selectPath(true)}>
-              <HugeiconsIcon icon={FolderOpenIcon} size={15} aria-hidden="true" focusable="false" />
+              <HugeiconsIcon icon={FolderOpenIcon} size={13} aria-hidden="true" focusable="false" />
               Open Folder
             </button>
           </span>
@@ -246,7 +243,7 @@ function App() {
             aria-expanded={sidebarVisible}
             onClick={() => setSidebarVisible(!sidebarVisible)}
           >
-            <HugeiconsIcon icon={SidebarLeftIcon} size={15} aria-hidden="true" focusable="false" />
+            <HugeiconsIcon icon={SidebarLeftIcon} size={13} aria-hidden="true" focusable="false" />
           </button>
           <button
             aria-label={terminalVisible ? "Hide terminal" : "Show terminal"}
@@ -255,7 +252,7 @@ function App() {
             aria-expanded={terminalVisible}
             onClick={() => setTerminalVisible(!terminalVisible)}
           >
-            <HugeiconsIcon icon={CommandLineIcon} size={15} aria-hidden="true" focusable="false" />
+            <HugeiconsIcon icon={CommandLineIcon} size={13} aria-hidden="true" focusable="false" />
           </button>
         </div>
       </header>
@@ -299,11 +296,11 @@ function App() {
                 <p>{folderPath ? "Choose a file from the sidebar, or open another file." : "Open a file to edit, or a folder to browse your code."}</p>
                 <div className="file-actions empty-actions" aria-label="Open a workspace">
                   <button disabled={dialogPending} onClick={() => void selectPath(false)}>
-                    <HugeiconsIcon icon={File01Icon} size={15} aria-hidden="true" focusable="false" />
+                    <HugeiconsIcon icon={File01Icon} size={13} aria-hidden="true" focusable="false" />
                     Open File
                   </button>
                   <button disabled={dialogPending} onClick={() => void selectPath(true)}>
-                    <HugeiconsIcon icon={FolderOpenIcon} size={15} aria-hidden="true" focusable="false" />
+                    <HugeiconsIcon icon={FolderOpenIcon} size={13} aria-hidden="true" focusable="false" />
                     Open Folder
                   </button>
                 </div>
@@ -315,11 +312,8 @@ function App() {
           <section id="terminal-panel" className="terminal" hidden={!terminalVisible} aria-labelledby="terminal-heading">
             <div className="panel-header">
               <h2 id="terminal-heading">Terminal</h2>
-              <button className="folder-retry" title="Ends the current shell and starts a new one. Copy: Ctrl+Shift+C; paste: Ctrl+Shift+V; interrupt: Ctrl+C." onClick={() => setTerminalVersion((version) => version + 1)}>Restart terminal</button>
-              {folderPath && <button className="folder-retry" title={`Ends the current shell and starts in ${folderPath}`} onClick={() => { setTerminalFolder(folderPath); setTerminalVersion((version) => version + 1); }}>Restart in folder</button>}
-              <span role="status">{terminalStatus}</span>
             </div>
-            <TerminalPanel key={terminalVersion} onStatus={setTerminalStatus} cwd={terminalFolder} />
+            <TerminalPanel key={folderPath ?? "default"} cwd={folderPath} />
           </section>
         </main>
       </div>
