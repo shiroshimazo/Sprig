@@ -88,7 +88,14 @@ pub async fn terminal_start(
             command.cwd(resolved);
         }
         #[cfg(windows)]
-        command.arg("-NoLogo");
+        command.args([
+            "-NoLogo",
+            "-NoExit",
+            "-Command",
+            "function prompt { $p = (Get-Location).Path; $l = Split-Path -Leaf $p; if (-not $l) { $l = $p }; \"PS $l> \" }",
+        ]);
+        #[cfg(not(windows))]
+        command.env("PS1", "\\W \\$ ");
         command.env("TERM", "xterm-256color");
         let mut child = pair
             .slave

@@ -9,6 +9,7 @@ import ResizeHandle from "./ResizeHandle";
 import FolderTree from "./FolderTree";
 import CodeEditor from "./CodeEditor";
 import TerminalPanel from "./TerminalPanel";
+import WindowControls from "./WindowControls";
 import "./App.css";
 
 function App() {
@@ -44,6 +45,7 @@ function App() {
   const [discarded, setDiscarded] = useState<{ path: string } | null>(null);
   const [promptPath, setPromptPath] = useState<string | null>(null);
   const prompt = useRef<HTMLDialogElement>(null);
+  const folderName = folderPath?.split(/[\\/]/).filter(Boolean).pop() ?? folderPath;
   const answer = useRef<((choice: "save" | "discard" | "cancel") => void) | null>(null);
   const guarding = useRef(false);
   const saveFile = useCallback(async (requestedPath?: string) => {
@@ -240,6 +242,7 @@ function App() {
         </div>
       </dialog>
       <header className="toolbar">
+        <WindowControls />
         <div className="file-actions" aria-label="File actions" ref={fileMenuRef}>
           <button
             ref={fileMenuButton}
@@ -269,6 +272,12 @@ function App() {
           )}
           {dialogPending && <span className="toolbar-note" role="status">Dialog open…</span>}
         </div>
+        <div
+          className="toolbar-spacer"
+          data-tauri-drag-region
+          aria-hidden="true"
+          onDoubleClick={() => { if (isTauri()) void getCurrentWindow().toggleMaximize().catch(() => {}); }}
+        />
         <div className="panel-actions" aria-label="Panel visibility">
           <button
             aria-label={sidebarVisible ? "Hide sidebar" : "Show sidebar"}
@@ -297,7 +306,7 @@ function App() {
           <div className="panel-header">
             <h2 id="files-heading">Files</h2>
           </div>
-          {folderPath ? <FolderTree key={folderPath} path={folderPath} activePath={filePath} onOpenFile={openFile} /> : <p className="sidebar-empty">No folder open.</p>}
+          {folderPath ? <FolderTree key={folderPath} path={folderPath} name={folderName ?? folderPath} activePath={filePath} onOpenFile={openFile} /> : <p className="sidebar-empty">No folder open.</p>}
         </aside>
         {sidebarVisible && <ResizeHandle panel="files-panel" label="Resize sidebar" orientation="vertical" value={sidebarWidth} onResize={setSidebarWidth} />}
 

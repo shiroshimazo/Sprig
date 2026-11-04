@@ -148,12 +148,81 @@ p {
 .toolbar {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 12px 32px;
-  min-height: 48px;
-  padding: 8px 16px;
+  flex-wrap: nowrap;
+  gap: 10px;
+  min-height: 30px;
+  padding: 0 12px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
+  line-height: 1;
+}
+
+.toolbar .file-actions { gap: 6px; }
+.toolbar .panel-actions { gap: 4px; }
+
+.toolbar .file-actions button,
+.toolbar .panel-actions button {
+  min-width: 25px;
+  min-height: 25px;
+  padding: 2px;
+  gap: 6px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+}
+
+.window-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 2px;
+}
+
+.traffic {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.traffic::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+}
+
+.traffic svg {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.window-controls:hover .traffic svg,
+.traffic:focus-visible svg {
+  opacity: 1;
+}
+
+.traffic--close { background: #ff5f57; }
+.traffic--minimize { background: #febc2e; }
+.traffic--zoom { background: #28c840; }
+
+@media (hover: none) {
+  .traffic svg { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .traffic svg { transition: none; }
+}
+
+.toolbar-spacer {
+  align-self: stretch;
+  flex: 1 1 auto;
+  min-width: 16px;
 }
 
 .file-actions,
@@ -177,10 +246,6 @@ p {
   border-radius: 4px;
   color: var(--text-muted);
   background: var(--control);
-}
-
-.panel-actions {
-  margin-left: auto;
 }
 
 .panel-actions button {
