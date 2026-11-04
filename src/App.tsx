@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { animate } from "animejs";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { CommandLineIcon, File01Icon, FolderOpenIcon, SidebarLeftIcon } from "@hugeicons/core-free-icons";
 import ResizeHandle from "./ResizeHandle";
@@ -69,7 +70,21 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (promptPath) prompt.current?.showModal();
+    const dialog = prompt.current;
+    if (!promptPath || !dialog) return;
+    dialog.showModal();
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const animation = reducedMotion.matches ? null : animate(dialog, {
+      opacity: [0, 1],
+      duration: 120,
+      ease: "outQuad",
+    });
+    const finish = () => { if (reducedMotion.matches) animation?.complete(); };
+    reducedMotion.addEventListener("change", finish);
+    return () => {
+      reducedMotion.removeEventListener("change", finish);
+      animation?.revert();
+    };
   }, [promptPath]);
 
   function respond(choice: "save" | "discard" | "cancel") {
