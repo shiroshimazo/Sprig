@@ -19,6 +19,7 @@ function App() {
   const [sidebarWidth, setSidebarWidth] = useState(22);
   const [terminalHeight, setTerminalHeight] = useState(28);
   const [filePath, setFilePath] = useState<string | null>(null);
+  const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
   const [folderPath, setFolderPath] = useState<string | null>(null);
   const [dialogPending, setDialogPending] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
@@ -258,8 +259,9 @@ function App() {
           <section className="editor" aria-labelledby="editor-heading">
             <div className="panel-header">
               <h2 id="editor-heading">Editor</h2>
-              <span className="selected-path" title={filePath ?? undefined}>{filePath ?? "No file open"}</span>
+              <span className="selected-path" title={filePath ?? undefined}>{filePath?.split(/[\\/]/).pop() ?? "No file open"}</span>
               {filePath && <span role="status">{isDirty ? "Unsaved changes" : "Unchanged"}</span>}
+              {filePath && <span className="cursor-position" aria-label={`Line ${cursorPosition.line}, column ${cursorPosition.column}`}>Ln {cursorPosition.line}, Col {cursorPosition.column}</span>}
             </div>
             {loadingPath && <p className="file-message" role="status">Opening {loadingPath}...</p>}
             {fileError && (
@@ -277,7 +279,7 @@ function App() {
             {filePath ? (
               <>
                 <p className="file-message">Ctrl+S: save; Ctrl+Z: undo; Ctrl+Y: redo; Ctrl+F: find/replace. Closing the app discards unsaved edits.</p>
-                <CodeEditor content={fileContent} path={filePath} onChange={updateContent} discarded={discarded} />
+                <CodeEditor content={fileContent} path={filePath} onChange={updateContent} onPositionChange={setCursorPosition} discarded={discarded} />
               </>
             ) : (
               <div className="editor-empty">

@@ -362,6 +362,11 @@ p {
   font-weight: 600;
 }
 
+.cursor-position {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 .sidebar-empty,
 .terminal-empty {
   padding: 16px;

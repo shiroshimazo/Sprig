@@ -23,7 +23,7 @@ function languageFor(path: string) {
   }
 }
 
-export default function CodeEditor({ content, path, onChange, discarded }: { content: string; path: string; onChange: (content: string) => void; discarded: { path: string } | null }) {
+export default function CodeEditor({ content, path, onChange, onPositionChange, discarded }: { content: string; path: string; onChange: (content: string) => void; onPositionChange: (position: { line: number; column: number }) => void; discarded: { path: string } | null }) {
   const container = useRef<HTMLDivElement>(null);
   const lastDiscard = useRef(discarded);
   const sessions = useRef(new Map<string, { state: EditorState; top: number; left: number }>());
@@ -50,6 +50,11 @@ export default function CodeEditor({ content, path, onChange, discarded }: { con
           lineEndings.extensions,
           EditorView.updateListener.of((update) => {
             if (update.docChanged) onChange(update.state.field(lineEndings.rawText));
+            if (update.docChanged || update.selectionSet) {
+              const head = update.state.selection.main.head;
+              const line = update.state.doc.lineAt(head);
+              onPositionChange({ line: line.number, column: head - line.from + 1 });
+            }
           }),
           search({ top: true }),
           keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
@@ -76,6 +81,9 @@ export default function CodeEditor({ content, path, onChange, discarded }: { con
         ],
       }),
     });
+    const head = view.state.selection.main.head;
+    const line = view.state.doc.lineAt(head);
+    onPositionChange({ line: line.number, column: head - line.from + 1 });
     if (cached) {
       view.requestMeasure({
         read: () => null,
@@ -93,7 +101,7 @@ export default function CodeEditor({ content, path, onChange, discarded }: { con
       });
       view.destroy();
     };
-  }, [content, path, onChange, discarded]);
+  }, [content, path, onChange, onPositionChange, discarded]);
 
   return <div className="code-editor" ref={container} />;
 }
