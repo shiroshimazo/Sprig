@@ -4,7 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { animate } from "animejs";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { CommandLineIcon, File01Icon, FolderOpenIcon, Hamburger01Icon, SidebarLeftIcon } from "@hugeicons/core-free-icons";
+import { CommandLineIcon, File01Icon, FolderOpenIcon, Menu01Icon, SidebarLeftIcon } from "@hugeicons/core-free-icons";
 import ResizeHandle from "./ResizeHandle";
 import FolderTree from "./FolderTree";
 import CodeEditor from "./CodeEditor";
@@ -240,7 +240,6 @@ function App() {
         </div>
       </dialog>
       <header className="toolbar">
-        <h1>Personal IDE</h1>
         <div className="file-actions" aria-label="File actions" ref={fileMenuRef}>
           <button
             ref={fileMenuButton}
@@ -251,7 +250,7 @@ function App() {
             title="File menu"
             onClick={() => setFileMenuOpen((open) => !open)}
           >
-            <HugeiconsIcon icon={Hamburger01Icon} size={13} aria-hidden="true" focusable="false" />
+            <HugeiconsIcon icon={Menu01Icon} size={13} aria-hidden="true" focusable="false" />
           </button>
           {fileMenuOpen && (
             <div className="file-menu" id="file-menu" role="menu" aria-label="File actions">

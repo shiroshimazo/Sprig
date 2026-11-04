@@ -156,11 +156,6 @@ p {
   background: var(--surface);
 }
 
-.toolbar h1 {
-  font-size: 13px;
-  font-weight: 600;
-}
-
 .file-actions,
 .panel-actions {
   display: flex;
@@ -255,7 +250,7 @@ p {
 .sidebar {
   min-width: 0;
   overflow: auto;
-  background: var(--surface);
+  background: var(--background);
 }
 
 .folder-list {
