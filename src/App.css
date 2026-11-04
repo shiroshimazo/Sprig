@@ -423,6 +423,18 @@ p {
   height: 100%;
 }
 
+.terminal-content:focus-within,
+.code-editor:focus-within {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+
+.cm-panels button:focus-visible,
+.cm-panels input:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
 @media (max-width: 480px) {
   .panel-header,
   .sidebar-empty,

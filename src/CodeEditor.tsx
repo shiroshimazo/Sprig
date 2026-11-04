@@ -4,11 +4,21 @@ import { EditorState } from "@codemirror/state";
 import { keymap, lineNumbers } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { search, searchKeymap } from "@codemirror/search";
-import { bracketMatching, defaultHighlightStyle, indentOnInput, indentUnit, syntaxHighlighting } from "@codemirror/language";
+import { bracketMatching, HighlightStyle, indentOnInput, indentUnit, syntaxHighlighting } from "@codemirror/language";
+import { tags } from "@lezer/highlight";
 import { javascript } from "@codemirror/lang-javascript";
 import { java } from "@codemirror/lang-java";
 import { sql } from "@codemirror/lang-sql";
 import { preserveLineEndings } from "./lineEndings";
+
+const highlighting = HighlightStyle.define([
+  { tag: tags.keyword, color: "#c4b5fd" },
+  { tag: [tags.string, tags.regexp], color: "#bef264" },
+  { tag: [tags.number, tags.bool, tags.null], color: "#fdba74" },
+  { tag: [tags.typeName, tags.className], color: "#67e8f9" },
+  { tag: tags.comment, color: "#b3b3b3" },
+  { tag: tags.invalid, color: "#fda4af", textDecoration: "underline" },
+]);
 
 function languageFor(path: string) {
   const extension = path.split(".").pop()?.toLowerCase();
@@ -41,7 +51,7 @@ export default function CodeEditor({ content, path, onChange, onPositionChange, 
         extensions: [
           lineNumbers(),
           languageFor(path),
-          syntaxHighlighting(defaultHighlightStyle),
+          syntaxHighlighting(highlighting),
           indentUnit.of("  "),
           EditorState.tabSize.of(2),
           indentOnInput(),
@@ -72,8 +82,8 @@ export default function CodeEditor({ content, path, onChange, onPositionChange, 
             ".cm-matchingBracket": { backgroundColor: "#353535", outline: "1px solid #777" },
             ".cm-panels": { backgroundColor: "var(--surface)", color: "var(--text)" },
             ".cm-textfield, .cm-button": { font: "inherit", color: "var(--text)", background: "var(--control)", border: "1px solid #555" },
-            ".cm-searchMatch": { backgroundColor: "#49422c", outline: "1px solid #9b8954" },
-            ".cm-searchMatch-selected": { backgroundColor: "#665734" },
+            ".cm-searchMatch": { backgroundColor: "#282828", outline: "1px solid #a3a3a3" },
+            ".cm-searchMatch-selected": { backgroundColor: "#333333", outline: "2px solid #e5e5e5" },
             "&.cm-focused": { outline: "none" },
             ".cm-content:focus-visible": { outline: "2px solid var(--text)", outlineOffset: "-2px" },
             ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": { backgroundColor: "#404040" },
