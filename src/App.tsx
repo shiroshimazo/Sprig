@@ -226,13 +226,13 @@ function App() {
           <button disabled={!filePath || savePending} title="Save (Ctrl+S)" onClick={() => void saveFile()}>{savePending ? "Saving..." : "Save"}</button>
           <span title="Open file">
             <button disabled={dialogPending} aria-label="Open file" title="Open file" onClick={() => selectPath(false)}>
-              <HugeiconsIcon icon={File01Icon} size={18} aria-hidden="true" focusable="false" />
+              <HugeiconsIcon icon={File01Icon} size={15} aria-hidden="true" focusable="false" />
               Open File
             </button>
           </span>
           <span title="Open folder">
             <button disabled={dialogPending} aria-label="Open folder" title="Open folder" onClick={() => selectPath(true)}>
-              <HugeiconsIcon icon={FolderOpenIcon} size={18} aria-hidden="true" focusable="false" />
+              <HugeiconsIcon icon={FolderOpenIcon} size={15} aria-hidden="true" focusable="false" />
               Open Folder
             </button>
           </span>
@@ -246,7 +246,7 @@ function App() {
             aria-expanded={sidebarVisible}
             onClick={() => setSidebarVisible(!sidebarVisible)}
           >
-            <HugeiconsIcon icon={SidebarLeftIcon} size={18} aria-hidden="true" focusable="false" />
+            <HugeiconsIcon icon={SidebarLeftIcon} size={15} aria-hidden="true" focusable="false" />
           </button>
           <button
             aria-label={terminalVisible ? "Hide terminal" : "Show terminal"}
@@ -255,7 +255,7 @@ function App() {
             aria-expanded={terminalVisible}
             onClick={() => setTerminalVisible(!terminalVisible)}
           >
-            <HugeiconsIcon icon={CommandLineIcon} size={18} aria-hidden="true" focusable="false" />
+            <HugeiconsIcon icon={CommandLineIcon} size={15} aria-hidden="true" focusable="false" />
           </button>
         </div>
       </header>
@@ -292,21 +292,18 @@ function App() {
               </div>
             )}
             {filePath ? (
-              <>
-                <p className="file-message">Ctrl+S: save; Ctrl+Z: undo; Ctrl+Y: redo; Ctrl+F: find/replace. Closing the app discards unsaved edits.</p>
-                <CodeEditor content={fileContent} path={filePath} onChange={updateContent} onPositionChange={setCursorPosition} discarded={discarded} />
-              </>
+              <CodeEditor content={fileContent} path={filePath} onChange={updateContent} onPositionChange={setCursorPosition} discarded={discarded} />
             ) : (
               <div className="editor-empty">
                 <h2>No file open</h2>
                 <p>{folderPath ? "Choose a file from the sidebar, or open another file." : "Open a file to edit, or a folder to browse your code."}</p>
                 <div className="file-actions empty-actions" aria-label="Open a workspace">
                   <button disabled={dialogPending} onClick={() => void selectPath(false)}>
-                    <HugeiconsIcon icon={File01Icon} size={18} aria-hidden="true" focusable="false" />
+                    <HugeiconsIcon icon={File01Icon} size={15} aria-hidden="true" focusable="false" />
                     Open File
                   </button>
                   <button disabled={dialogPending} onClick={() => void selectPath(true)}>
-                    <HugeiconsIcon icon={FolderOpenIcon} size={18} aria-hidden="true" focusable="false" />
+                    <HugeiconsIcon icon={FolderOpenIcon} size={15} aria-hidden="true" focusable="false" />
                     Open Folder
                   </button>
                 </div>

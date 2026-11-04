@@ -12,7 +12,7 @@ export default function TerminalPanel({ onStatus, cwd }: { onStatus: (status: st
     if (!element) return;
     const terminal = new Terminal({
       fontFamily: '"Cascadia Mono", Consolas, monospace',
-      fontSize: 13,
+      fontSize: 15,
       lineHeight: 1.5,
       cursorBlink: false,
       disableStdin: true,

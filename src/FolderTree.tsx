@@ -49,7 +49,7 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile }
     <div className="folder-node">
       <button className="folder-toggle" title={path} aria-expanded={expanded} aria-controls={contentId} onClick={toggle}>
         <span className="folder-arrow" aria-hidden="true">{expanded ? "−" : "+"}</span>
-        <HugeiconsIcon icon={FolderOpenIcon} size={16} aria-hidden="true" focusable="false" />
+        <HugeiconsIcon icon={FolderOpenIcon} size={15} aria-hidden="true" focusable="false" />
         <span className="entry-name">{name}</span>
       </button>
       <div id={contentId} hidden={!expanded} className="folder-contents">
@@ -64,7 +64,7 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile }
                   <FolderTree path={entry.path} name={entry.name} activePath={activePath} onOpenFile={onOpenFile} />
                 ) : (
                   <button className="file-entry" title={entry.path} aria-current={activePath === entry.path ? "true" : undefined} onClick={() => onOpenFile(entry.path)}>
-                    <HugeiconsIcon icon={File01Icon} size={16} aria-hidden="true" focusable="false" />
+                    <HugeiconsIcon icon={File01Icon} size={15} aria-hidden="true" focusable="false" />
                     <span className="entry-name">{entry.name}{entry.isSymlink ? " (link)" : ""}</span>
                   </button>
                 )}

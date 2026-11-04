@@ -6,7 +6,7 @@
   --text: #e5e5e5;
   --text-muted: #a3a3a3;
   font-family: "Cascadia Mono", Consolas, monospace;
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.5;
   font-weight: 400;
   color: var(--text);
@@ -20,6 +20,14 @@
 
 * {
   box-sizing: border-box;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 body {
@@ -36,7 +44,7 @@ body {
 }
 
 .unsaved-dialog::backdrop { background: #000a; }
-.unsaved-dialog h2 { font-size: 16px; }
+.unsaved-dialog h2 { font-size: 15px; }
 .unsaved-dialog p { margin-top: 12px; overflow-wrap: anywhere; }
 .unsaved-dialog > div { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
 .unsaved-dialog button { padding: 8px 12px; border: 1px solid #555; border-radius: 4px; background: var(--control); color: var(--text); cursor: pointer; }
@@ -111,7 +119,7 @@ p {
 }
 
 .toolbar h1 {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
 }
 
@@ -197,7 +205,7 @@ p {
 
 .toolbar-note,
 .panel-header span {
-  font-size: 12px;
+  font-size: 15px;
   color: var(--text-muted);
 }
 
@@ -318,7 +326,7 @@ p {
 
 .folder-message {
   padding: 8px;
-  font-size: 12px;
+  font-size: 15px;
 }
 
 .folder-retry {
@@ -358,7 +366,7 @@ p {
 }
 
 .panel-header h2 {
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 600;
 }
 
@@ -386,11 +394,11 @@ p {
 
 .editor-empty p + p {
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 15px;
 }
 
 .editor-empty h2 {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
 }
 
@@ -409,7 +417,7 @@ p {
 }
 
 .terminal-empty {
-  font-size: 12px;
+  font-size: 15px;
 }
 
 .terminal-content {
@@ -421,12 +429,6 @@ p {
 
 .terminal-content .xterm {
   height: 100%;
-}
-
-.terminal-content:focus-within,
-.code-editor:focus-within {
-  outline: 2px solid var(--text);
-  outline-offset: -2px;
 }
 
 .cm-panels button:focus-visible,
