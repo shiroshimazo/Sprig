@@ -10,6 +10,7 @@ use std::{
 };
 use tauri::{Manager, ipc::Channel};
 use tauri_plugin_fs::FsExt;
+use std::path::{Path, PathBuf};
 
 struct Session {
     master: Box<dyn MasterPty + Send>,
@@ -32,6 +33,22 @@ pub enum TerminalEvent {
     Output(Vec<u8>),
     Exit,
     Error(String),
+}
+
+/// Windows `canonicalize` returns verbatim `\\?\` paths, which CMD and
+/// PowerShell don't support as a working directory. Strip the prefix.
+fn un_verbatim(path: &Path) -> PathBuf {
+    #[cfg(windows)]
+    {
+        let text = path.as_os_str().to_string_lossy();
+        if let Some(rest) = text.strip_prefix(r"\\?\UNC\") {
+            return PathBuf::from(format!(r"\\{rest}"));
+        }
+        if let Some(rest) = text.strip_prefix(r"\\?\") {
+            return PathBuf::from(rest);
+        }
+    }
+    path.to_path_buf()
 }
 
 fn size(cols: u16, rows: u16) -> Result<PtySize, String> {
@@ -85,7 +102,7 @@ pub async fn terminal_start(
             if !resolved.is_dir() || !scope.is_allowed(&resolved) {
                 return Err("Working folder is unavailable or outside the selected scope.".into());
             }
-            command.cwd(resolved);
+            command.cwd(un_verbatim(&resolved));
         }
         #[cfg(windows)]
         command.args([

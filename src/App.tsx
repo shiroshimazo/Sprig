@@ -4,13 +4,17 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { animate } from "animejs";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { CommandLineIcon, File01Icon, FolderOpenIcon, Menu01Icon, SidebarLeftIcon } from "@hugeicons/core-free-icons";
+import { CommandLineIcon, File01Icon, FolderOpenIcon, Menu01Icon, MultiplicationSignIcon, PlusSignIcon, SidebarLeftIcon } from "@hugeicons/core-free-icons";
 import ResizeHandle from "./ResizeHandle";
 import FolderTree from "./FolderTree";
 import CodeEditor from "./CodeEditor";
 import TerminalPanel from "./TerminalPanel";
 import WindowControls from "./WindowControls";
 import "./App.css";
+
+const MAX_TERMINALS = 4;
+
+type TerminalTab = { id: string; name: string; cwd: string | null };
 
 function App() {
   const [sidebarVisible, setSidebarVisible] = useState(true);
@@ -20,6 +24,26 @@ function App() {
   const [filePath, setFilePath] = useState<string | null>(null);
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
   const [folderPath, setFolderPath] = useState<string | null>(null);
+  const nextTerminalNumber = useRef(2);
+  const [terminals, setTerminals] = useState<TerminalTab[]>(() => [{ id: crypto.randomUUID(), name: "Terminal 1", cwd: null }]);
+  const [activeTerminalId, setActiveTerminalId] = useState<string | null>(() => terminals[0].id);
+  const addTerminal = useCallback(() => {
+    if (terminals.length >= MAX_TERMINALS) return;
+    const tab = { id: crypto.randomUUID(), name: `Terminal ${nextTerminalNumber.current++}`, cwd: folderPath };
+    setTerminals((current) => [...current, tab]);
+    setActiveTerminalId(tab.id);
+  }, [terminals.length, folderPath]);
+  const closeTerminal = useCallback((id: string) => {
+    const index = terminals.findIndex((tab) => tab.id === id);
+    const next = terminals.filter((tab) => tab.id !== id);
+    setTerminals(next);
+    if (activeTerminalId === id) {
+      setActiveTerminalId(next[Math.min(index, next.length - 1)]?.id ?? null);
+    }
+  }, [terminals, activeTerminalId]);
+  const focusTerminalTab = useCallback((id: string) => {
+    document.getElementById(`terminal-tab-${id}`)?.focus();
+  }, []);
   const [dialogPending, setDialogPending] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const dialogActive = useRef(false);
@@ -355,8 +379,73 @@ function App() {
           <section id="terminal-panel" className="terminal" hidden={!terminalVisible} aria-labelledby="terminal-heading">
             <div className="panel-header">
               <h2 id="terminal-heading">Terminal</h2>
+              <div className="terminal-tabs" role="tablist" aria-label="Terminal sessions">
+                {terminals.map((tab) => {
+                  const selected = tab.id === activeTerminalId;
+                  return (
+                    <div key={tab.id} className={`terminal-tab${selected ? " terminal-tab--active" : ""}`}>
+                      <button
+                        role="tab"
+                        id={`terminal-tab-${tab.id}`}
+                        aria-selected={selected}
+                        aria-controls={`terminal-pane-${tab.id}`}
+                        tabIndex={selected ? 0 : -1}
+                        className="terminal-tab-select"
+                        title={tab.cwd ?? tab.name}
+                        onClick={() => setActiveTerminalId(tab.id)}
+                        onKeyDown={(event) => {
+                          const index = terminals.findIndex((item) => item.id === tab.id);
+                          let target: TerminalTab | undefined;
+                          if (event.key === "ArrowRight") target = terminals[(index + 1) % terminals.length];
+                          else if (event.key === "ArrowLeft") target = terminals[(index - 1 + terminals.length) % terminals.length];
+                          else if (event.key === "Home") target = terminals[0];
+                          else if (event.key === "End") target = terminals[terminals.length - 1];
+                          if (target) {
+                            event.preventDefault();
+                            setActiveTerminalId(target.id);
+                            focusTerminalTab(target.id);
+                          }
+                        }}
+                      >
+                        {tab.name}
+                      </button>
+                      <button className="terminal-tab-close" aria-label={`Close ${tab.name}`} title={`Close ${tab.name}`} onClick={() => closeTerminal(tab.id)}>
+                        <HugeiconsIcon icon={MultiplicationSignIcon} size={13} aria-hidden="true" focusable="false" />
+                      </button>
+                    </div>
+                  );
+                })}
+                <button
+                  className="terminal-tab-add"
+                  aria-label="New terminal"
+                  title={terminals.length >= MAX_TERMINALS ? "Terminal limit reached (4)" : "New terminal"}
+                  disabled={terminals.length >= MAX_TERMINALS}
+                  onClick={addTerminal}
+                >
+                  <HugeiconsIcon icon={PlusSignIcon} size={13} aria-hidden="true" focusable="false" />
+                </button>
+              </div>
             </div>
-            <TerminalPanel key={folderPath ?? "default"} cwd={folderPath} />
+            <div className="terminal-panes">
+              {terminals.map((tab) => (
+                <div
+                  key={tab.id}
+                  role="tabpanel"
+                  id={`terminal-pane-${tab.id}`}
+                  aria-labelledby={`terminal-tab-${tab.id}`}
+                  hidden={tab.id !== activeTerminalId}
+                  className="terminal-pane"
+                >
+                  <TerminalPanel cwd={tab.cwd} />
+                </div>
+              ))}
+              {terminals.length === 0 && (
+                <div className="terminal-empty">
+                  <p>No terminal open.</p>
+                  <button className="terminal-empty-action" onClick={addTerminal}>Open Terminal</button>
+                </div>
+              )}
+            </div>
           </section>
         </main>
       </div>

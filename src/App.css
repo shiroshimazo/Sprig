@@ -569,6 +569,129 @@ p {
   height: 100%;
 }
 
+.terminal-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--background);
+}
+
+.terminal-tab {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  color: var(--text-muted);
+}
+
+.terminal-tab--active,
+.terminal-tab:hover {
+  color: var(--text);
+}
+
+.terminal-tab--active {
+  background: var(--control);
+}
+
+.terminal-tab-select {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 6px 0 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  border-radius: 4px 0 0 4px;
+  outline: none;
+}
+
+.terminal-tab-select:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+
+.terminal-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 0 4px 4px 0;
+}
+
+.terminal-tab-close:hover {
+  color: var(--text);
+  background: #303030;
+}
+
+.terminal-tab-close:focus-visible,
+.terminal-tab-add:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+
+.terminal-tab-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.terminal-tab-add:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--control);
+}
+
+.terminal-tab-add:disabled {
+  color: #3f3f3f;
+  cursor: default;
+}
+
+.terminal-panes {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.terminal-pane {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.terminal-empty-action {
+  margin-top: 12px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.terminal-empty-action:hover {
+  background: var(--control);
+}
+
 .cm-panels button:focus-visible,
 .cm-panels input:focus-visible {
   outline: 2px solid var(--text);
