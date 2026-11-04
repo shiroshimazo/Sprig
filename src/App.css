@@ -13,6 +13,8 @@
   background: var(--background);
   color-scheme: dark;
   font-synthesis: none;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -316,77 +318,131 @@ p {
   min-width: 0;
   overflow: auto;
   background: var(--background);
+  font-size: 13px;
+  padding: 4px;
 }
 
-.folder-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.beui-shared-bg {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
 }
 
-.folder-contents {
-  margin-left: 12px;
+.beui-item {
+  position: relative;
 }
 
-.folder-toggle,
-.file-entry {
+.beui-item-inner {
+  position: relative;
+  z-index: 1;
+}
+
+.beui-pill-anchor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.beui-pill,
+.file-tree-pill {
+  width: 100%;
+  height: 100%;
+  border-radius: 6px;
+  background: var(--control);
+}
+
+.file-tree-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
   width: 100%;
-  min-height: 32px;
-  padding: 6px 8px;
+  height: 32px;
+  padding: 0 8px 0 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+  transition: color 120ms ease;
+}
+
+.file-tree-row:hover,
+.file-tree-row:focus-visible {
   color: var(--text);
 }
 
-.folder-toggle {
-  border: 0;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-}
-
-.folder-toggle:hover,
-.folder-retry:hover {
-  background: var(--control);
-}
-
-.folder-toggle:focus-visible {
+.file-tree-row:focus-visible {
+  outline: 2px solid var(--text);
   outline-offset: -2px;
 }
 
-.folder-toggle svg,
-.file-entry svg,
-.folder-arrow {
+.file-tree-row[aria-disabled="true"] {
+  cursor: default;
+}
+
+.file-tree-row--selected,
+.file-tree-row--selected:hover {
+  color: var(--text);
+  background: var(--control);
+  font-weight: 500;
+}
+
+.file-tree-branch {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+  transform-origin: top;
+}
+
+.file-tree-chevron {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
 }
 
-.entry-name,
-.folder-message {
-  overflow-wrap: anywhere;
-  min-width: 0;
+.file-tree-chevron--hidden {
+  opacity: 0;
 }
 
-.file-entry,
-.folder-message {
+.file-tree-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
   color: var(--text-muted);
+  transition: color 120ms ease;
 }
 
-.file-entry {
-  border: 0;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-}
-
-.file-entry:hover,
-.file-entry[aria-current="true"] {
+.file-tree-row:hover .file-tree-icon,
+.file-tree-row:focus-visible .file-tree-icon,
+.file-tree-icon--open {
   color: var(--text);
-  background: var(--control);
 }
 
-.file-entry:focus-visible {
-  outline-offset: -2px;
+.file-tree-icon-swap {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.file-tree-label {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .file-message {
@@ -422,21 +478,6 @@ p {
   overflow: hidden;
 }
 
-.folder-message {
-  padding: 8px;
-  font-size: 13px;
-}
-
-.folder-retry {
-  margin-top: 8px;
-  padding: 4px 8px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-}
-
 .workbench {
   display: grid;
   min-width: 0;
@@ -470,7 +511,6 @@ p {
 
 .cursor-position {
   white-space: nowrap;
-  font-variant-numeric: tabular-nums;
 }
 
 .sidebar-empty,
