@@ -3,6 +3,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Channel, invoke, isTauri } from "@tauri-apps/api/core";
+import { handleShiftEnter } from "./terminalKeys";
 import "@xterm/xterm/css/xterm.css";
 
 export default function TerminalPanel({ cwd }: { cwd: string | null }) {
@@ -48,6 +49,7 @@ export default function TerminalPanel({ cwd }: { cwd: string | null }) {
       if (!disposed) terminal.writeln(`\r\nTerminal error: ${String(error)}`);
     };
     terminal.attachCustomKeyEventHandler((event) => {
+      if (!handleShiftEnter(event, (data) => { if (connected) terminal.input(data, true); })) return false;
       const key = event.key.toLowerCase();
       if ((event.ctrlKey || event.metaKey) && event.shiftKey && (key === "c" || key === "v")) {
         if (event.type === "keydown") {
