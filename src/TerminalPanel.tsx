@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { WebglAddon } from "@xterm/addon-webgl";
 import { Channel, invoke, isTauri } from "@tauri-apps/api/core";
 import "@xterm/xterm/css/xterm.css";
 
@@ -15,7 +16,7 @@ export default function TerminalPanel({ cwd }: { cwd: string | null }) {
       smoothScrollDuration: motion.matches ? 0 : 120,
       fontFamily: '"Cascadia Mono", Consolas, monospace',
       fontSize: 13,
-      lineHeight: 1.5,
+      lineHeight: 1,
       cursorBlink: false,
       disableStdin: true,
       screenReaderMode: true,
@@ -31,6 +32,14 @@ export default function TerminalPanel({ cwd }: { cwd: string | null }) {
     const fit = new FitAddon();
     terminal.loadAddon(fit);
     terminal.open(element);
+    const webgl = new WebglAddon();
+    webgl.onContextLoss(() => webgl.dispose());
+    try {
+      terminal.loadAddon(webgl);
+    } catch (error) {
+      webgl.dispose();
+      console.warn("WebGL unavailable; using the terminal DOM renderer.", error);
+    }
     let disposed = false;
     let connected = false;
     let exited = false;
