@@ -276,6 +276,7 @@ function App() {
         if (directory) {
           if (!await confirmLeaving([...documents.current.keys()])) return;
           setFolderPath(selected);
+          setTerminals((current) => current.map((tab) => ({ ...tab, cwd: selected })));
           setSidebarVisible(true);
         } else {
           void openFile(selected);
