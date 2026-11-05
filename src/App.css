@@ -704,6 +704,33 @@ body.terminal-dragging * {
 
 .detached-terminal { display: flex; flex-direction: column; height: 100vh; min-height: 0; }
 
+.detached-toolbar {
+  flex-shrink: 0;
+}
+
+.detached-terminal-name {
+  flex-shrink: 0;
+  max-width: 45%;
+  padding-right: 2px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  border: 0;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
 .file-tabs {
   display: flex;
   align-items: center;

@@ -116,7 +116,7 @@ export default function TerminalPanel({ cwd, name, onDetachedChange, ref }: {
       if (!isTauri() || !connected || disposed || opening || relay.detached) return;
       opening = true;
       timeout = setTimeout(() => { view.report("Pop-out window did not connect. Terminal restored."); dock(); }, 15000);
-      void listenersReady.then(() => invoke("terminal_popout", { id, title: `${name}${cwd ? ` — ${cwd}` : ""}` }))
+      void listenersReady.then(() => invoke("terminal_popout", { id, title: `${name}${cwd ? ` — ${cwd}` : ""}`, name }))
         .catch((error) => { view.report(error); dock(); });
     };
     view.fit();

@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { emitTo, listen } from "@tauri-apps/api/event";
+import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { createTerminalView } from "./terminalView";
 import type { OwnerMessage, ViewMessage } from "./terminalRelay";
+import WindowControls from "./WindowControls";
 
-export default function DetachedTerminal({ id }: { id: string }) {
+export default function DetachedTerminal({ id, name }: { id: string; name: string }) {
   const container = useRef<HTMLDivElement>(null);
   const dock = useRef(() => {});
   const [error, setError] = useState<string | null>(null);
@@ -70,8 +72,18 @@ export default function DetachedTerminal({ id }: { id: string }) {
     void setup().catch((error) => { if (!disposed) { setError(String(error)); void window.show(); } });
     return () => { disposed = true; unlisteners.forEach((stop) => stop()); view.dispose(); };
   }, [id]);
-  return <main className="detached-terminal">
-    <header className="panel-header"><h2>Terminal</h2><button className="terminal-empty-action" onClick={() => dock.current()}>Dock terminal</button></header>
+  return <main className="detached-terminal" aria-label={`Detached terminal: ${name}`}>
+    <header className="toolbar detached-toolbar">
+      <WindowControls />
+      <div
+        className="toolbar-spacer"
+        data-tauri-drag-region
+        aria-hidden="true"
+        onDoubleClick={() => { if (isTauri()) void getCurrentWindow().toggleMaximize().catch(() => {}); }}
+      />
+      <span className="detached-terminal-name" title={name}>{name}</span>
+    </header>
+    <h2 className="sr-only">{name}</h2>
     {error && <p role="alert" className="dialog-error">{error}</p>}
     <div ref={container} className="terminal-content" aria-label="Detached terminal output" />
   </main>;

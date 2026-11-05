@@ -201,8 +201,37 @@ pub fn terminal_stop(state: tauri::State<Terminals>, id: String) -> Result<(), S
     Ok(())
 }
 
+/// Percent-encode a string for use as a single query parameter value.
+/// Kept local so we don't pull in a URL crate just for this.
+fn url_component(text: &str) -> String {
+    use std::fmt::Write;
+    let mut out = String::with_capacity(text.len());
+    for byte in text.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(byte as char);
+            }
+            _ => {
+                let _ = write!(out, "%{byte:02X}");
+            }
+        }
+    }
+    out
+}
+
+/// Sanitize the display name shown in the detached window header.
+/// The name comes from our own frontend, but bound length and reject
+/// control characters anyway since it is interpolated into a URL.
+fn detached_name(name: &str) -> String {
+    let trimmed = name.trim();
+    if trimmed.is_empty() || trimmed.chars().count() > 64 || trimmed.chars().any(char::is_control) {
+        return "Terminal".into();
+    }
+    trimmed.to_string()
+}
+
 #[tauri::command]
-pub async fn terminal_popout(app: tauri::AppHandle, window: tauri::WebviewWindow, id: String, title: String) -> Result<(), String> {
+pub async fn terminal_popout(app: tauri::AppHandle, window: tauri::WebviewWindow, id: String, title: String, name: String) -> Result<(), String> {
     if window.label() != "main" { return Err("Only the main window can detach a terminal.".into()); }
     if id.is_empty() || !id.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-') {
         return Err("Invalid terminal ID.".into());
@@ -216,8 +245,11 @@ pub async fn terminal_popout(app: tauri::AppHandle, window: tauri::WebviewWindow
     }
     let label = format!("terminal-{id}");
     if app.get_webview_window(&label).is_some() { return Err("Terminal is already detached.".into()); }
-    tauri::WebviewWindowBuilder::new(&app, label, tauri::WebviewUrl::App(format!("index.html?terminal={id}").into()))
+    let safe = detached_name(&name);
+    let url = format!("index.html?terminal={id}&name={}", url_component(&safe));
+    tauri::WebviewWindowBuilder::new(&app, label, tauri::WebviewUrl::App(url.into()))
         .title(title).inner_size(900.0, 560.0).min_inner_size(320.0, 200.0).visible(false)
+        .decorations(false)
         .build().map_err(|e| format!("Cannot open terminal window: {e}"))?;
     Ok(())
 }
@@ -258,6 +290,33 @@ pub fn stop_all(app: &tauri::AppHandle) {
         .ok()
         .map(|mut sessions| std::mem::take(&mut *sessions));
     drop(removed);
+}
+
+#[cfg(test)]
+mod detached_name_tests {
+    use super::*;
+
+    #[test]
+    fn keeps_normal_names_and_trims_whitespace() {
+        assert_eq!(detached_name("Terminal 1"), "Terminal 1");
+        assert_eq!(detached_name("  Terminal 2  "), "Terminal 2");
+    }
+
+    #[test]
+    fn falls_back_for_empty_or_oversized_names() {
+        assert_eq!(detached_name(""), "Terminal");
+        assert_eq!(detached_name("   "), "Terminal");
+        assert_eq!(detached_name(&"x".repeat(100)), "Terminal");
+        assert_eq!(detached_name("a\nb"), "Terminal");
+    }
+
+    #[test]
+    fn percent_encodes_query_components() {
+        assert_eq!(url_component("Terminal 1"), "Terminal%201");
+        assert_eq!(url_component("PS C:\\Users"), "PS%20C%3A%5CUsers");
+        assert_eq!(url_component("héllo"), "h%C3%A9llo");
+        assert_eq!(url_component("a&b=c"), "a%26b%3Dc");
+    }
 }
 
 #[cfg(all(test, windows))]
