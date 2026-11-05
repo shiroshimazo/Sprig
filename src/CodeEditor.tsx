@@ -11,6 +11,7 @@ import { java } from "@codemirror/lang-java";
 import { sql } from "@codemirror/lang-sql";
 import { css } from "@codemirror/lang-css";
 import { preserveLineEndings } from "./lineEndings";
+import { smoothScroll } from "./smoothScroll";
 
 // One Dark Theme by Joshua Azemoh — applied to the code editor only.
 // Source: https://github.com/azemoh/vscode-onedark (themes/OneDarkTheme-color-theme.json)
@@ -122,6 +123,7 @@ export default function CodeEditor({ content, path, onChange, onPositionChange, 
         ],
       }),
     });
+    const stopSmoothScroll = smoothScroll(view.scrollDOM, view.defaultLineHeight);
     const head = view.state.selection.main.head;
     const line = view.state.doc.lineAt(head);
     onPositionChange({ line: line.number, column: head - line.from + 1 });
@@ -135,6 +137,7 @@ export default function CodeEditor({ content, path, onChange, onPositionChange, 
       });
     }
     return () => {
+      stopSmoothScroll();
       sessions.current.set(path, {
         state: view.state,
         top: view.scrollDOM.scrollTop,

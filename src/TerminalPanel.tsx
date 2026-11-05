@@ -10,7 +10,9 @@ export default function TerminalPanel({ cwd }: { cwd: string | null }) {
   useEffect(() => {
     const element = container.current;
     if (!element) return;
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
     const terminal = new Terminal({
+      smoothScrollDuration: motion.matches ? 0 : 120,
       fontFamily: '"Cascadia Mono", Consolas, monospace',
       fontSize: 13,
       lineHeight: 1.5,
@@ -24,6 +26,8 @@ export default function TerminalPanel({ cwd }: { cwd: string | null }) {
         selectionBackground: "#404040",
       },
     });
+    const updateMotion = () => { terminal.options.smoothScrollDuration = motion.matches ? 0 : 120; };
+    motion.addEventListener("change", updateMotion);
     const fit = new FitAddon();
     terminal.loadAddon(fit);
     terminal.open(element);
@@ -109,6 +113,7 @@ export default function TerminalPanel({ cwd }: { cwd: string | null }) {
       terminal.writeln("Open the desktop app to start a local shell.");
     }
     return () => {
+      motion.removeEventListener("change", updateMotion);
       disposed = true;
       if (isTauri()) void invoke("terminal_stop", { id }).catch(() => {});
       connected = false;
