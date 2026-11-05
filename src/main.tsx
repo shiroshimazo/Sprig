@@ -7,9 +7,12 @@ import "@fontsource/cascadia-code/latin-400-italic.css";
 import "@fontsource/cascadia-code/latin-600.css";
 import "@fontsource/cascadia-code/latin-600-italic.css";
 import App from "./App";
+import DetachedTerminal from "./DetachedTerminal";
+
+const detachedId = new URLSearchParams(window.location.search).get("terminal");
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <App />
+    {detachedId ? <DetachedTerminal id={detachedId} /> : <App />}
   </React.StrictMode>,
 );

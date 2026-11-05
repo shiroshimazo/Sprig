@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-terminal-popout"
+description = "Enables the terminal_popout command without any pre-configured scope."
+commands.allow = ["terminal_popout"]
+
+[[permission]]
+identifier = "deny-terminal-popout"
+description = "Denies the terminal_popout command without any pre-configured scope."
+commands.deny = ["terminal_popout"]

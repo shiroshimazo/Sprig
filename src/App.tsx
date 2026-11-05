@@ -1,20 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { animate } from "animejs";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { CommandLineIcon, File01Icon, FolderOpenIcon, Menu01Icon, MultiplicationSignIcon, PlusSignIcon, SidebarLeftIcon } from "@hugeicons/core-free-icons";
+import { ArrowUpRightIcon, CommandLineIcon, File01Icon, FolderOpenIcon, Menu01Icon, MultiplicationSignIcon, PlusSignIcon, SidebarLeftIcon } from "@hugeicons/core-free-icons";
+import { beyondDragThreshold, isOutsideWindow, type WindowBounds } from "./terminalDrag";
 import ResizeHandle from "./ResizeHandle";
 import FolderTree from "./FolderTree";
 import CodeEditor from "./CodeEditor";
 import TerminalPanel from "./TerminalPanel";
+import type { TerminalPanelHandle } from "./TerminalPanel";
+import { SourceControl, CommitHistory, useSourceControl } from "./SourceControl";
 import WindowControls from "./WindowControls";
 import "./App.css";
 
 const MAX_TERMINALS = 4;
 
-type TerminalTab = { id: string; name: string; cwd: string | null };
+type TerminalTab = { id: string; name: string; cwd: string | null; detached?: boolean };
 
 function App() {
   const [sidebarVisible, setSidebarVisible] = useState(true);
@@ -25,9 +29,18 @@ function App() {
   const [openTabs, setOpenTabs] = useState<string[]>([]);
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
   const [folderPath, setFolderPath] = useState<string | null>(null);
+  const [sidebarMode, setSidebarMode] = useState<"files" | "source">("files");
+  const sourceControl = useSourceControl(folderPath, sidebarMode === "source");
   const nextTerminalNumber = useRef(2);
   const [terminals, setTerminals] = useState<TerminalTab[]>(() => [{ id: crypto.randomUUID(), name: "Terminal 1", cwd: null }]);
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(() => terminals[0].id);
+  const terminalViews = useRef(new Map<string, TerminalPanelHandle>());
+  const dragGhostRef = useRef<HTMLDivElement>(null);
+  const [dragGhost, setDragGhost] = useState<{ name: string } | null>(null);
+  const tabDrag = useRef<{ pointerId: number; startX: number; startY: number; bounds: WindowBounds; tabId: string; tabName: string; active: boolean } | null>(null);
+  const suppressTabClickUntil = useRef(0);
+  const dockedTerminals = terminals.filter((tab) => !tab.detached);
+  const selectedTerminalId = dockedTerminals.find((tab) => tab.id === activeTerminalId)?.id ?? dockedTerminals[0]?.id;
   const addTerminal = useCallback(() => {
     if (terminals.length >= MAX_TERMINALS) return;
     const tab = { id: crypto.randomUUID(), name: `Terminal ${nextTerminalNumber.current++}`, cwd: folderPath };
@@ -45,9 +58,86 @@ function App() {
   const focusTerminalTab = useCallback((id: string) => {
     document.getElementById(`terminal-tab-${id}`)?.focus();
   }, []);
+  // Drag a terminal tab out of the window to pop it into its own window.
+  // The press only becomes a drag after a few pixels of movement so plain
+  // clicks keep working; the geometry is computed in screen coordinates
+  // because pointer capture does not reliably report out-of-window client
+  // positions.
+  const startTerminalDrag = (event: ReactPointerEvent<HTMLButtonElement>, tab: TerminalTab) => {
+    if (event.button !== 0 || !isTauri()) return;
+    tabDrag.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      bounds: { x: window.screenX, y: window.screenY, width: window.outerWidth, height: window.outerHeight },
+      tabId: tab.id,
+      tabName: tab.name,
+      active: false,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const moveTerminalDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const drag = tabDrag.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (!drag.active) {
+      if (!beyondDragThreshold(event.clientX - drag.startX, event.clientY - drag.startY)) return;
+      drag.active = true;
+      setDragGhost({ name: drag.tabName });
+      return;
+    }
+    const ghost = dragGhostRef.current;
+    if (!ghost) return;
+    const x = Math.min(Math.max(event.clientX + 14, 8), Math.max(8, window.innerWidth - ghost.offsetWidth - 8));
+    const y = Math.min(Math.max(event.clientY + 16, 8), Math.max(8, window.innerHeight - ghost.offsetHeight - 8));
+    ghost.style.transform = `translate(${x}px, ${y}px)`;
+    ghost.classList.toggle("terminal-drag-ghost--outside", isOutsideWindow(event.screenX, event.screenY, drag.bounds));
+  };
+  // A click may follow a released drag; swallow clicks for a short window
+  // afterwards. A timestamp (not a flag) so stale state never eats later clicks.
+  const noteDragEnded = () => { suppressTabClickUntil.current = Date.now() + 400; };
+  const endTerminalDrag = (event: ReactPointerEvent<HTMLButtonElement>, commit: boolean) => {
+    const drag = tabDrag.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    tabDrag.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    if (!drag.active) return;
+    noteDragEnded();
+    setDragGhost(null);
+    if (commit && isOutsideWindow(event.screenX, event.screenY, drag.bounds)) {
+      terminalViews.current.get(drag.tabId)?.popOut();
+    }
+  };
+  const cancelTerminalDrag = () => {
+    if (tabDrag.current?.active) noteDragEnded();
+    tabDrag.current = null;
+    setDragGhost(null);
+  };
+  const dragging = dragGhost !== null;
+  useEffect(() => {
+    document.body.classList.toggle("terminal-dragging", dragging);
+    if (!dragging) return () => document.body.classList.remove("terminal-dragging");
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      cancelTerminalDrag();
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+      document.body.classList.remove("terminal-dragging");
+    };
+  }, [dragging]);
   const [dialogPending, setDialogPending] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const dialogActive = useRef(false);
+  const externalOpening = useRef(false);
+  const openExternalTerminal = async (cwd: string | null) => {
+    if (!cwd || externalOpening.current) return;
+    externalOpening.current = true;
+    try { await invoke("terminal_open_external", { path: cwd }); }
+    catch (error) { setDialogError(`Cannot open external terminal: ${String(error)}`); }
+    finally { externalOpening.current = false; }
+  };
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const fileMenuRef = useRef<HTMLDivElement>(null);
   const fileMenuButton = useRef<HTMLButtonElement>(null);
@@ -276,7 +366,7 @@ function App() {
         if (directory) {
           if (!await confirmLeaving([...documents.current.keys()])) return;
           setFolderPath(selected);
-          setTerminals((current) => current.map((tab) => ({ ...tab, cwd: selected })));
+          setTerminals((current) => current.map((tab) => tab.detached ? tab : { ...tab, cwd: selected }));
           setSidebarVisible(true);
         } else {
           void openFile(selected);
@@ -301,6 +391,12 @@ function App() {
           <button autoFocus onClick={() => respond("cancel")}>Cancel</button>
         </div>
       </dialog>
+      {dragGhost && (
+        <div ref={dragGhostRef} className="terminal-drag-ghost" style={{ transform: "translate(-1000px, -1000px)" }} aria-hidden="true">
+          <HugeiconsIcon icon={CommandLineIcon} size={13} aria-hidden="true" focusable="false" />
+          <span className="terminal-drag-ghost-name">{dragGhost.name}</span>
+        </div>
+      )}
       <header className="toolbar">
         <WindowControls />
         <div className="file-actions" aria-label="File actions" ref={fileMenuRef}>
@@ -364,14 +460,19 @@ function App() {
       <div className="workspace" style={{ gridTemplateColumns: sidebarVisible ? `${sidebarWidth}% 4px minmax(0, 1fr)` : "minmax(0, 1fr)" }}>
         <aside id="files-panel" className="sidebar" hidden={!sidebarVisible} aria-labelledby="files-heading">
           <div className="panel-header">
-            <h2 id="files-heading">Files</h2>
+            <h2 id="files-heading">{sidebarMode === "files" ? "Files" : "Source Control"}</h2>
           </div>
-          {folderPath ? <FolderTree key={folderPath} path={folderPath} name={folderName ?? folderPath} activePath={filePath} onOpenFile={openFile} /> : <p className="sidebar-empty">No folder open.</p>}
+          <div className="sidebar-switch" aria-label="Sidebar views">
+            <button aria-pressed={sidebarMode === "files"} onClick={() => setSidebarMode("files")}>Files</button>
+            <button aria-pressed={sidebarMode === "source"} onClick={() => setSidebarMode("source")}>Source Control</button>
+          </div>
+          {sidebarMode === "source" ? <SourceControl control={sourceControl} path={folderPath} /> : folderPath ? <FolderTree key={folderPath} path={folderPath} name={folderName ?? folderPath} activePath={filePath} onOpenFile={openFile} /> : <p className="sidebar-empty">No folder open.</p>}
         </aside>
         {sidebarVisible && <ResizeHandle panel="files-panel" label="Resize sidebar" orientation="vertical" value={sidebarWidth} onResize={setSidebarWidth} />}
 
         <main className="workbench" style={{ gridTemplateRows: terminalVisible ? `minmax(0, 1fr) 4px ${terminalHeight}%` : "minmax(0, 1fr)" }}>
-          <section id="editor-pane" className="editor" role="tabpanel" aria-labelledby={filePath ? fileTabId(filePath) : "editor-heading"}>
+          {sidebarMode === "source" && <CommitHistory control={sourceControl} />}
+          <section id="editor-pane" className="editor" style={sidebarMode === "source" ? { display: "none" } : undefined} role="tabpanel" aria-labelledby={filePath ? fileTabId(filePath) : "editor-heading"}>
             <div className="panel-header">
               <h2 id="editor-heading">Editor</h2>
               {openTabs.length > 0 && (
@@ -458,8 +559,8 @@ function App() {
             <div className="panel-header">
               <h2 id="terminal-heading">Terminal</h2>
               <div className="terminal-tabs" role="tablist" aria-label="Terminal sessions">
-                {terminals.map((tab) => {
-                  const selected = tab.id === activeTerminalId;
+                {dockedTerminals.map((tab) => {
+                  const selected = tab.id === selectedTerminalId;
                   return (
                     <div key={tab.id} className={`terminal-tab${selected ? " terminal-tab--active" : ""}`}>
                       <button
@@ -469,15 +570,23 @@ function App() {
                         aria-controls={`terminal-pane-${tab.id}`}
                         tabIndex={selected ? 0 : -1}
                         className="terminal-tab-select"
-                        title={tab.cwd ?? tab.name}
-                        onClick={() => setActiveTerminalId(tab.id)}
+                        title={`${tab.cwd ?? tab.name} — drag the tab outside the window to move it into its own window`}
+                        onPointerDown={(event) => startTerminalDrag(event, tab)}
+                        onPointerMove={moveTerminalDrag}
+                        onPointerUp={(event) => endTerminalDrag(event, true)}
+                        onPointerCancel={(event) => endTerminalDrag(event, false)}
+                        onLostPointerCapture={cancelTerminalDrag}
+                        onClick={() => {
+                          if (Date.now() < suppressTabClickUntil.current) return;
+                          setActiveTerminalId(tab.id);
+                        }}
                         onKeyDown={(event) => {
-                          const index = terminals.findIndex((item) => item.id === tab.id);
+                          const index = dockedTerminals.findIndex((item) => item.id === tab.id);
                           let target: TerminalTab | undefined;
-                          if (event.key === "ArrowRight") target = terminals[(index + 1) % terminals.length];
-                          else if (event.key === "ArrowLeft") target = terminals[(index - 1 + terminals.length) % terminals.length];
-                          else if (event.key === "Home") target = terminals[0];
-                          else if (event.key === "End") target = terminals[terminals.length - 1];
+                          if (event.key === "ArrowRight") target = dockedTerminals[(index + 1) % dockedTerminals.length];
+                          else if (event.key === "ArrowLeft") target = dockedTerminals[(index - 1 + dockedTerminals.length) % dockedTerminals.length];
+                          else if (event.key === "Home") target = dockedTerminals[0];
+                          else if (event.key === "End") target = dockedTerminals[dockedTerminals.length - 1];
                           if (target) {
                             event.preventDefault();
                             setActiveTerminalId(target.id);
@@ -486,6 +595,9 @@ function App() {
                         }}
                       >
                         {tab.name}
+                      </button>
+                      <button className="terminal-tab-add terminal-tab-popout" aria-label={`Pop out ${tab.name}`} title="Move terminal into a new app window" onClick={() => terminalViews.current.get(tab.id)?.popOut()}>
+                        <HugeiconsIcon icon={ArrowUpRightIcon} size={13} aria-hidden="true" focusable="false" />
                       </button>
                       <button className="terminal-tab-close" aria-label={`Close ${tab.name}`} title={`Close ${tab.name}`} onClick={() => closeTerminal(tab.id)}>
                         <HugeiconsIcon icon={MultiplicationSignIcon} size={13} aria-hidden="true" focusable="false" />
@@ -502,6 +614,7 @@ function App() {
                 >
                   <HugeiconsIcon icon={PlusSignIcon} size={13} aria-hidden="true" focusable="false" />
                 </button>
+                <button className="terminal-tab-add terminal-external" title="Open a new external shell in the selected terminal's starting folder" disabled={!terminals.find((tab) => tab.id === activeTerminalId)?.cwd} onClick={() => void openExternalTerminal(terminals.find((tab) => tab.id === activeTerminalId)?.cwd ?? null)}>External</button>
               </div>
             </div>
             <div className="terminal-panes">
@@ -511,16 +624,19 @@ function App() {
                   role="tabpanel"
                   id={`terminal-pane-${tab.id}`}
                   aria-labelledby={`terminal-tab-${tab.id}`}
-                  hidden={tab.id !== activeTerminalId}
+                  hidden={tab.detached || tab.id !== selectedTerminalId}
                   className="terminal-pane"
                 >
-                  <TerminalPanel cwd={tab.cwd} />
+                  <TerminalPanel cwd={tab.cwd} name={tab.name} ref={(view) => { if (view) terminalViews.current.set(tab.id, view); else terminalViews.current.delete(tab.id); }} onDetachedChange={(detached) => {
+                    setTerminals((current) => current.map((item) => item.id === tab.id ? { ...item, detached } : item));
+                    if (!detached) { setActiveTerminalId(tab.id); setTerminalVisible(true); }
+                  }} />
                 </div>
               ))}
-              {terminals.length === 0 && (
+              {dockedTerminals.length === 0 && (
                 <div className="terminal-empty">
-                  <p>No terminal open.</p>
-                  <button className="terminal-empty-action" onClick={addTerminal}>Open Terminal</button>
+                  <p>{terminals.length ? "Terminals are open in separate app windows. Close those windows to dock them here." : "No terminal open."}</p>
+                  <button className="terminal-empty-action" disabled={terminals.length >= MAX_TERMINALS} onClick={addTerminal}>Open Terminal</button>
                 </div>
               )}
             </div>

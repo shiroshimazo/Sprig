@@ -1,139 +1,145 @@
-import { useEffect, useRef } from "react";
-import { Terminal } from "@xterm/xterm";
-import { FitAddon } from "@xterm/addon-fit";
-import { WebglAddon } from "@xterm/addon-webgl";
+import { useEffect, useImperativeHandle, useRef } from "react";
+import type { Ref } from "react";
 import { Channel, invoke, isTauri } from "@tauri-apps/api/core";
-import { handleShiftEnter } from "./terminalKeys";
-import "@xterm/xterm/css/xterm.css";
+import { emitTo, listen } from "@tauri-apps/api/event";
+import { Window } from "@tauri-apps/api/window";
+import { SerializeAddon } from "@xterm/addon-serialize";
+import { createTerminalView } from "./terminalView";
+import { TerminalRelay } from "./terminalRelay";
+import type { TerminalEvent, OwnerMessage, ViewMessage } from "./terminalRelay";
 
-export default function TerminalPanel({ cwd }: { cwd: string | null }) {
+export type TerminalPanelHandle = { popOut: () => void };
+
+export default function TerminalPanel({ cwd, name, onDetachedChange, ref }: {
+  cwd: string | null; name: string; onDetachedChange: (detached: boolean) => void; ref?: Ref<TerminalPanelHandle>;
+}) {
   const container = useRef<HTMLDivElement>(null);
+  const popOut = useRef(() => {});
+  const changed = useRef(onDetachedChange);
+  changed.current = onDetachedChange;
+  useImperativeHandle(ref, () => ({ popOut: () => popOut.current() }), []);
 
   useEffect(() => {
     const element = container.current;
     if (!element) return;
-    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const terminal = new Terminal({
-      smoothScrollDuration: motion.matches ? 0 : 120,
-      fontFamily: '"Cascadia Mono", Consolas, monospace',
-      fontSize: 13,
-      lineHeight: 1,
-      cursorBlink: false,
-      disableStdin: true,
-      screenReaderMode: true,
-      theme: {
-        background: "#090909",
-        foreground: "#e5e5e5",
-        cursor: "#e5e5e5",
-        selectionBackground: "#404040",
-      },
-    });
-    const updateMotion = () => { terminal.options.smoothScrollDuration = motion.matches ? 0 : 120; };
-    motion.addEventListener("change", updateMotion);
-    const fit = new FitAddon();
-    terminal.loadAddon(fit);
-    terminal.open(element);
-    const webgl = new WebglAddon();
-    webgl.onContextLoss(() => webgl.dispose());
-    try {
-      terminal.loadAddon(webgl);
-    } catch (error) {
-      webgl.dispose();
-      console.warn("WebGL unavailable; using the terminal DOM renderer.", error);
-    }
     let disposed = false;
     let connected = false;
     let exited = false;
+    let opening = false;
+    let docking = false;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     const id = crypto.randomUUID();
-    const report = (error: unknown) => {
-      if (!disposed) terminal.writeln(`\r\nTerminal error: ${String(error)}`);
-    };
-    terminal.attachCustomKeyEventHandler((event) => {
-      if (!handleShiftEnter(event, (data) => { if (connected) terminal.input(data, true); })) return false;
-      const key = event.key.toLowerCase();
-      if ((event.ctrlKey || event.metaKey) && event.shiftKey && (key === "c" || key === "v")) {
-        if (event.type === "keydown") {
-          event.preventDefault();
-          if (key === "c") {
-            const selected = terminal.getSelection();
-            if (selected) void navigator.clipboard.writeText(selected).catch(report);
-          } else if (connected) {
-            void navigator.clipboard.readText().then((text) => {
-              if (!disposed && connected) terminal.paste(text);
-            }).catch(report);
-          }
-        }
-        return false;
-      }
-      return true;
-    });
+    const label = `terminal-${id}`;
     let writes = Promise.resolve();
-    const input = terminal.onData((data) => {
-      if (connected) writes = writes.then(async () => {
-        if (!disposed && connected) await invoke<void>("terminal_write", { id, data });
-      }).catch(report);
-    });
-    let pendingSize: { cols: number; rows: number } | null = null;
+    let messages = Promise.resolve();
     let resizing = false;
+    let pendingSize: { cols: number; rows: number } | null = null;
+    const sendInput = (data: string) => {
+      if (connected) writes = writes.then(async () => {
+        if (!disposed && connected) await invoke("terminal_write", { id, data });
+      }).catch((error) => view.report(error));
+    };
     const syncSize = async (cols: number, rows: number) => {
       pendingSize = { cols, rows };
       if (resizing || !connected || disposed) return;
       resizing = true;
       try {
         while (pendingSize && connected && !disposed) {
-          const size = pendingSize;
-          pendingSize = null;
+          const size = pendingSize; pendingSize = null;
           await invoke("terminal_resize", { id, ...size });
         }
-      } catch (error) { if (connected && !disposed) report(error); }
+      } catch (error) { if (!disposed && connected) view.report(error); }
       finally { resizing = false; }
     };
-    const dimensions = terminal.onResize(({ cols, rows }) => { void syncSize(cols, rows); });
-    const resize = () => {
-      if (!disposed && element.clientWidth > 0 && element.clientHeight > 0) fit.fit();
+    const send = (message: OwnerMessage) => {
+      messages = messages.then(async () => { if (!disposed) await emitTo(label, "terminal-owner", message); })
+        .catch((error) => { if (!disposed) { view.report(error); dock(); } });
     };
-    const observer = new ResizeObserver(resize);
-    observer.observe(element);
-    void document.fonts.ready.then(resize);
-    resize();
-    if (isTauri()) {
-      const output = new Channel<{ type: "output"; data: number[] } | { type: "exit" } | { type: "error"; data: string }>();
-      output.onmessage = (event) => {
-        if (disposed || exited) return;
-        if (event.type === "output") {
-          connected = true;
-          terminal.options.disableStdin = false;
-          terminal.write(new Uint8Array(event.data));
-        }
-        else if (event.type === "error") report(event.data);
-        else {
-          exited = true;
-          connected = false;
+    const view = createTerminalView(element, {
+      input: (data) => { if (!relay.detached) sendInput(data); },
+      resize: (cols, rows) => { void syncSize(cols, rows); },
+      canFit: () => !relay.detached && !relay.paused,
+    });
+    const { terminal } = view;
+    const serializer = new SerializeAddon();
+    terminal.loadAddon(serializer);
+    const relay = new TerminalRelay((event) => {
+      if (disposed) return;
+      if (event.type === "output") terminal.write(new Uint8Array(event.data));
+      else if (event.type === "error") view.report(event.data);
+      else {
+        exited = true; connected = false; terminal.options.disableStdin = true;
+        terminal.writeln("\r\nShell exited.");
+      }
+    }, send);
+    const destroyWindow = async () => { const window = await Window.getByLabel(label); await window?.destroy(); };
+    const dock = () => {
+      clearTimeout(timeout);
+      if (disposed) return;
+      opening = false; docking = false;
+      relay.resume(false);
+      terminal.options.disableStdin = !connected;
+      changed.current(false);
+      requestAnimationFrame(() => { if (!disposed) { view.fit(); terminal.focus(); } });
+      void destroyWindow().catch(view.report);
+    };
+    const unlisteners: (() => void)[] = [];
+    const subscribe = async () => {
+      const stop = await listen<ViewMessage>(`terminal-view-${id}`, ({ payload }) => {
+        if (disposed) return;
+        if (payload.type === "ready" && opening && !relay.paused && !relay.detached) {
+          relay.pause();
+          terminal.write("", () => {
+            if (disposed || !opening) return;
+            send({ type: "snapshot", text: serializer.serialize(), cols: terminal.cols, rows: terminal.rows, viewport: terminal.buffer.active.viewportY, exited });
+          });
+        } else if (payload.type === "attached" && opening && relay.paused) {
+          clearTimeout(timeout); opening = false;
+          relay.resume(true);
           terminal.options.disableStdin = true;
-          terminal.writeln("\r\nShell exited.");
-        }
-      };
+          changed.current(true);
+        } else if (payload.type === "input" && relay.detached) sendInput(payload.data);
+        else if (payload.type === "resize" && relay.detached && !docking) {
+          if (Number.isInteger(payload.cols) && Number.isInteger(payload.rows) && payload.cols > 0 && payload.rows > 0 && payload.cols <= 1000 && payload.rows <= 1000) terminal.resize(payload.cols, payload.rows);
+        } else if (payload.type === "dock" && relay.detached && !docking) {
+          docking = true; relay.pause(); send({ type: "drain" });
+          timeout = setTimeout(dock, 5000);
+        } else if (payload.type === "drained" && docking) dock();
+      });
+      if (disposed) stop(); else unlisteners.push(stop);
+      const closed = await listen<string>("terminal-window-closed", ({ payload }) => { if (payload === id) dock(); });
+      if (disposed) closed(); else unlisteners.push(closed);
+    };
+    const listenersReady = isTauri() ? subscribe() : Promise.resolve();
+    void listenersReady.catch(view.report);
+    popOut.current = () => {
+      if (!isTauri() || !connected || disposed || opening || relay.detached) return;
+      opening = true;
+      timeout = setTimeout(() => { view.report("Pop-out window did not connect. Terminal restored."); dock(); }, 15000);
+      void listenersReady.then(() => invoke("terminal_popout", { id, title: `${name}${cwd ? ` — ${cwd}` : ""}` }))
+        .catch((error) => { view.report(error); dock(); });
+    };
+    view.fit();
+    if (isTauri()) {
+      const output = new Channel<TerminalEvent>();
+      output.onmessage = (event) => { if (!disposed) relay.receive(event); };
       void invoke("terminal_start", { id, cols: terminal.cols, rows: terminal.rows, output, cwd }).then(async () => {
         if (disposed) { await invoke("terminal_stop", { id }); return; }
         if (exited) return;
-        connected = true;
-        terminal.options.disableStdin = false;
+        connected = true; terminal.options.disableStdin = false;
         await syncSize(terminal.cols, terminal.rows);
-      }).catch((error) => { if (!disposed) report(error); });
-    } else {
-      terminal.writeln("Open the desktop app to start a local shell.");
-    }
+      }).catch(view.report);
+    } else terminal.writeln("Open the desktop app to start a local shell.");
     return () => {
-      motion.removeEventListener("change", updateMotion);
-      disposed = true;
-      if (isTauri()) void invoke("terminal_stop", { id }).catch(() => {});
-      connected = false;
-      input.dispose();
-      dimensions.dispose();
-      observer.disconnect();
-      terminal.dispose();
+      disposed = true; connected = false; clearTimeout(timeout);
+      popOut.current = () => {};
+      unlisteners.forEach((stop) => stop());
+      if (isTauri()) {
+        void destroyWindow().catch(() => {});
+        void invoke("terminal_stop", { id }).catch(() => {});
+      }
+      view.dispose();
     };
-  }, [cwd]);
-
+  }, [cwd, name]);
   return <div ref={container} className="terminal-content" aria-label="Terminal output" />;
 }

@@ -600,9 +600,11 @@ p {
   background: transparent;
   color: inherit;
   font: inherit;
-  cursor: pointer;
+  cursor: grab;
   border-radius: 4px 0 0 4px;
   outline: none;
+  touch-action: none;
+  user-select: none;
 }
 
 .terminal-tab-select:focus-visible {
@@ -658,6 +660,49 @@ p {
   color: #3f3f3f;
   cursor: default;
 }
+
+.terminal-external { width: auto; padding: 0 8px; flex-shrink: 0; }
+
+.terminal-drag-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 240px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--text);
+  font-size: 12px;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.45);
+  will-change: transform;
+}
+
+.terminal-drag-ghost-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.terminal-drag-ghost--outside {
+  border-color: var(--text);
+  border-style: dashed;
+  background: #262626;
+}
+
+body.terminal-dragging,
+body.terminal-dragging * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+.detached-terminal { display: flex; flex-direction: column; height: 100vh; min-height: 0; }
 
 .file-tabs {
   display: flex;

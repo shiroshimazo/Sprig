@@ -201,6 +201,54 @@ pub fn terminal_stop(state: tauri::State<Terminals>, id: String) -> Result<(), S
     Ok(())
 }
 
+#[tauri::command]
+pub async fn terminal_popout(app: tauri::AppHandle, window: tauri::WebviewWindow, id: String, title: String) -> Result<(), String> {
+    if window.label() != "main" { return Err("Only the main window can detach a terminal.".into()); }
+    if id.is_empty() || !id.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-') {
+        return Err("Invalid terminal ID.".into());
+    }
+    {
+        let state = app.state::<Terminals>();
+        let sessions = state.0.lock().map_err(|e| e.to_string())?;
+        if state.1.load(Ordering::SeqCst) || !sessions.contains_key(&id) {
+            return Err("Terminal is no longer running.".into());
+        }
+    }
+    let label = format!("terminal-{id}");
+    if app.get_webview_window(&label).is_some() { return Err("Terminal is already detached.".into()); }
+    tauri::WebviewWindowBuilder::new(&app, label, tauri::WebviewUrl::App(format!("index.html?terminal={id}").into()))
+        .title(title).inner_size(900.0, 560.0).min_inner_size(320.0, 200.0).visible(false)
+        .build().map_err(|e| format!("Cannot open terminal window: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn terminal_open_external(app: tauri::AppHandle, path: PathBuf) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let scope = app.fs_scope();
+        if !scope.is_allowed(&path) { return Err("Open the working folder first.".into()); }
+        let resolved = path.canonicalize().map_err(|e| e.to_string())?;
+        if !resolved.is_dir() || !scope.is_allowed(&resolved) { return Err("Working folder is unavailable or outside the selected scope.".into()); }
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            let working = un_verbatim(&resolved);
+            let result = std::process::Command::new("wt.exe")
+                .args(["-w", "new", "new-tab", "-d"]).arg(&working)
+                .arg("powershell.exe").arg("-NoLogo")
+                .creation_flags(0x08000000).status();
+            if matches!(result, Ok(status) if status.success()) { return Ok(()); }
+            std::process::Command::new("powershell.exe")
+                .args(["-NoLogo", "-NoExit"]).current_dir(working)
+                .creation_flags(0x00000010).spawn()
+                .map_err(|e| format!("Cannot open an external terminal: {e}"))?;
+            Ok(())
+        }
+        #[cfg(not(windows))]
+        Err("Opening an external terminal is currently supported on Windows.".into())
+    }).await.map_err(|e| e.to_string())?
+}
+
 pub fn stop_all(app: &tauri::AppHandle) {
     let state = app.state::<Terminals>();
     state.1.store(true, Ordering::SeqCst);

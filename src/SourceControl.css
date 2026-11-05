@@ -1,0 +1,29 @@
+.sidebar-switch { display: flex; gap: 4px; padding: 6px; border-bottom: 1px solid var(--border); }
+.sidebar-switch button, .source-control button { border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; background: var(--control); color: var(--text); cursor: pointer; }
+.sidebar-switch button[aria-pressed="true"] { background: #303030; border-color: #666; }
+.sidebar-switch button:hover, .source-control button:not(:disabled):hover { background: #303030; }
+.sidebar-switch button:focus-visible, .source-control button:focus-visible, .source-control textarea:focus-visible { outline: 2px solid #87b5ff; outline-offset: 2px; }
+.source-control { padding: 10px 6px; }
+.source-control button:disabled { opacity: .45; cursor: default; }
+.source-toolbar, .source-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.source-toolbar { justify-content: space-between; }
+.source-toolbar strong { overflow-wrap: anywhere; }
+.source-control textarea { display: block; width: 100%; min-height: 85px; resize: vertical; margin: 6px 0; padding: 8px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 4px; }
+.source-hint, .source-status { color: var(--text-muted); font-size: 11px; }
+.source-status { min-height: 1.5em; }
+.source-error { color: #ffaaaa; white-space: pre-wrap; overflow-wrap: anywhere; }
+.source-control h3 { font-size: 12px; margin: 18px 0 6px; }
+.source-control h3 span { color: var(--text-muted); }
+.source-control ul { list-style: none; padding: 0; margin: 0; }
+.source-control li { display: flex; align-items: center; gap: 6px; min-height: 34px; }
+.source-file { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.source-clean { padding: 28px 0; text-align: center; color: var(--text-muted); }
+.commit-history { display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+.commit-scroll { overflow: auto; }
+.commit-history table { border-collapse: collapse; width: 100%; text-align: left; font-size: 12px; }
+.commit-history th { position: sticky; top: 0; background: var(--surface); color: var(--text-muted); font-weight: 400; }
+.commit-history th, .commit-history td { padding: 9px 12px; border-bottom: 1px solid #191919; }
+.commit-history td:first-child { color: #87b5ff; }
+.commit-history td:nth-child(2) { min-width: 240px; }
+.commit-history td:last-child { white-space: nowrap; color: var(--text-muted); }
+.commit-history tbody tr:hover { background: var(--surface); }
