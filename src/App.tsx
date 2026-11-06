@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { emitTo, listen } from "@tauri-apps/api/event";
+import { DETACHED_LABEL } from "./terminalRelay";
+import type { DetachedWindowMessage } from "./terminalRelay";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { animate } from "animejs";
@@ -18,7 +21,7 @@ import "./App.css";
 
 const MAX_TERMINALS = 4;
 
-type TerminalTab = { id: string; name: string; cwd: string | null; detached?: boolean };
+type TerminalTab = { id: string; name: string; cwd: string | null; detached?: boolean; sessionId?: string };
 
 function App() {
   const [sidebarVisible, setSidebarVisible] = useState(true);
@@ -34,7 +37,52 @@ function App() {
   const nextTerminalNumber = useRef(2);
   const [terminals, setTerminals] = useState<TerminalTab[]>(() => [{ id: crypto.randomUUID(), name: "Terminal 1", cwd: null }]);
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(() => terminals[0].id);
+  // Tabs whose detach handoff is in flight. The roster must include these,
+  // otherwise the shared window never mounts a pane and the handoff deadlocks.
+  const [pendingDetach, setPendingDetach] = useState<string[]>([]);
+  const terminalsRef = useRef(terminals);
+  terminalsRef.current = terminals;
+  const pendingRef = useRef(pendingDetach);
+  pendingRef.current = pendingDetach;
+  const rosterSignature = useRef("\0");
+  const emitRoster = useCallback(() => {
+    if (!isTauri()) return;
+    const pending = pendingRef.current;
+    const list = terminalsRef.current
+      .filter((tab) => tab.sessionId && (tab.detached || pending.includes(tab.id)))
+      .map(({ sessionId, name, cwd }) => ({ id: sessionId!, name, cwd }));
+    const signature = list.map((tab) => `${tab.id}:${tab.name}:${tab.cwd ?? ""}`).join("|");
+    if (rosterSignature.current === signature) return;
+    rosterSignature.current = signature;
+    void emitTo(DETACHED_LABEL, "detached-window", { type: "roster", terminals: list } satisfies DetachedWindowMessage).catch(() => {});
+  }, []);
+  useEffect(() => { emitRoster(); }, [terminals, pendingDetach, emitRoster]);
+  // Drop pending entries once they detach (handoff done) or after a short
+  // grace period if the panel never reports back.
+  useEffect(() => {
+    setPendingDetach((current) => {
+      const next = current.filter((id) => !terminals.some((tab) => tab.id === id && tab.detached));
+      return next.length === current.length ? current : next;
+    });
+  }, [terminals]);
+  // Re-send the roster when the shared detached window mounts or remounts.
+  useEffect(() => {
+    if (!isTauri()) return;
+    let disposed = false;
+    let stop: (() => void) | undefined;
+    void listen<DetachedWindowMessage>("detached-window", ({ payload }) => {
+      if (payload?.type === "ready") { rosterSignature.current = "\0"; emitRoster(); }
+    }).then((unlisten) => { if (disposed) unlisten(); else stop = unlisten; }).catch(() => {});
+    return () => { disposed = true; stop?.(); };
+  }, [emitRoster]);
   const terminalViews = useRef(new Map<string, TerminalPanelHandle>());
+  // Mark the tab pending, then ask its panel to detach. Roster readers see
+  // pending tabs so the shared window can mount the pane during handoff.
+  const requestPopOut = useCallback((id: string) => {
+    if (!terminalsRef.current.find((tab) => tab.id === id)?.sessionId) return;
+    setPendingDetach((current) => (current.includes(id) ? current : [...current, id]));
+    terminalViews.current.get(id)?.popOut();
+  }, []);
   const dragGhostRef = useRef<HTMLDivElement>(null);
   const [dragGhost, setDragGhost] = useState<{ name: string } | null>(null);
   const tabDrag = useRef<{ pointerId: number; startX: number; startY: number; bounds: WindowBounds; tabId: string; tabName: string; active: boolean } | null>(null);
@@ -104,7 +152,7 @@ function App() {
     noteDragEnded();
     setDragGhost(null);
     if (commit && isOutsideWindow(event.screenX, event.screenY, drag.bounds)) {
-      terminalViews.current.get(drag.tabId)?.popOut();
+      requestPopOut(drag.tabId);
     }
   };
   const cancelTerminalDrag = () => {
@@ -130,14 +178,6 @@ function App() {
   const [dialogPending, setDialogPending] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const dialogActive = useRef(false);
-  const externalOpening = useRef(false);
-  const openExternalTerminal = async (cwd: string | null) => {
-    if (!cwd || externalOpening.current) return;
-    externalOpening.current = true;
-    try { await invoke("terminal_open_external", { path: cwd }); }
-    catch (error) { setDialogError(`Cannot open external terminal: ${String(error)}`); }
-    finally { externalOpening.current = false; }
-  };
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const fileMenuRef = useRef<HTMLDivElement>(null);
   const fileMenuButton = useRef<HTMLButtonElement>(null);
@@ -596,7 +636,7 @@ function App() {
                       >
                         {tab.name}
                       </button>
-                      <button className="terminal-tab-add terminal-tab-popout" aria-label={`Pop out ${tab.name}`} title="Move terminal into a new app window" onClick={() => terminalViews.current.get(tab.id)?.popOut()}>
+                      <button className="terminal-tab-add terminal-tab-popout" aria-label={`Pop out ${tab.name}`} title="Move terminal into a shared window" onClick={() => requestPopOut(tab.id)}>
                         <HugeiconsIcon icon={ArrowUpRightIcon} size={13} aria-hidden="true" focusable="false" />
                       </button>
                       <button className="terminal-tab-close" aria-label={`Close ${tab.name}`} title={`Close ${tab.name}`} onClick={() => closeTerminal(tab.id)}>
@@ -614,7 +654,6 @@ function App() {
                 >
                   <HugeiconsIcon icon={PlusSignIcon} size={13} aria-hidden="true" focusable="false" />
                 </button>
-                <button className="terminal-tab-add terminal-external" title="Open a new external shell in the selected terminal's starting folder" disabled={!terminals.find((tab) => tab.id === activeTerminalId)?.cwd} onClick={() => void openExternalTerminal(terminals.find((tab) => tab.id === activeTerminalId)?.cwd ?? null)}>External</button>
               </div>
             </div>
             <div className="terminal-panes">
@@ -627,8 +666,11 @@ function App() {
                   hidden={tab.detached || tab.id !== selectedTerminalId}
                   className="terminal-pane"
                 >
-                  <TerminalPanel cwd={tab.cwd} name={tab.name} ref={(view) => { if (view) terminalViews.current.set(tab.id, view); else terminalViews.current.delete(tab.id); }} onDetachedChange={(detached) => {
+                  <TerminalPanel cwd={tab.cwd} name={tab.name} ref={(view) => { if (view) terminalViews.current.set(tab.id, view); else terminalViews.current.delete(tab.id); }} onSessionReady={(sessionId) => {
+                    setTerminals((current) => current.map((item) => item.id === tab.id ? { ...item, sessionId } : item));
+                  }} onCloseRequested={() => closeTerminal(tab.id)} onDetachedChange={(detached) => {
                     setTerminals((current) => current.map((item) => item.id === tab.id ? { ...item, detached } : item));
+                    setPendingDetach((current) => current.filter((id) => id !== tab.id));
                     if (!detached) { setActiveTerminalId(tab.id); setTerminalVisible(true); }
                   }} />
                 </div>

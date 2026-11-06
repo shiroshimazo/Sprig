@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "terminal-window",
-  "description": "Detached terminal views communicate with their owner in the main window",
-  "windows": ["terminal-*"],
+  "description": "Shared detached-terminal window communicates with its owner in the main window",
+  "windows": ["detached-terminals"],
   "permissions": [
     "core:event:default",
     "core:window:allow-show",

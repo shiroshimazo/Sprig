@@ -11,11 +11,11 @@ pub fn run() {
             if matches!(event, tauri::WindowEvent::Destroyed) {
                 if window.label() == "main" {
                     terminal::stop_all(window.app_handle());
-                    for (label, detached) in window.app_handle().webview_windows() {
-                        if label.starts_with("terminal-") { let _ = detached.destroy(); }
+                    if let Some(detached) = window.app_handle().get_webview_window(terminal::DETACHED_LABEL) {
+                        let _ = detached.destroy();
                     }
-                } else if let Some(id) = window.label().strip_prefix("terminal-") {
-                    let _ = window.app_handle().emit_to("main", "terminal-window-closed", id);
+                } else if window.label() == terminal::DETACHED_LABEL {
+                    let _ = window.app_handle().emit_to("main", "terminal-window-closed", ());
                 }
             }
         })

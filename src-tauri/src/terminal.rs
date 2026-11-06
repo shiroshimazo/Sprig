@@ -201,37 +201,11 @@ pub fn terminal_stop(state: tauri::State<Terminals>, id: String) -> Result<(), S
     Ok(())
 }
 
-/// Percent-encode a string for use as a single query parameter value.
-/// Kept local so we don't pull in a URL crate just for this.
-fn url_component(text: &str) -> String {
-    use std::fmt::Write;
-    let mut out = String::with_capacity(text.len());
-    for byte in text.bytes() {
-        match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(byte as char);
-            }
-            _ => {
-                let _ = write!(out, "%{byte:02X}");
-            }
-        }
-    }
-    out
-}
-
-/// Sanitize the display name shown in the detached window header.
-/// The name comes from our own frontend, but bound length and reject
-/// control characters anyway since it is interpolated into a URL.
-fn detached_name(name: &str) -> String {
-    let trimmed = name.trim();
-    if trimmed.is_empty() || trimmed.chars().count() > 64 || trimmed.chars().any(char::is_control) {
-        return "Terminal".into();
-    }
-    trimmed.to_string()
-}
+/// Label of the single shared window hosting all detached terminals.
+pub const DETACHED_LABEL: &str = "detached-terminals";
 
 #[tauri::command]
-pub async fn terminal_popout(app: tauri::AppHandle, window: tauri::WebviewWindow, id: String, title: String, name: String) -> Result<(), String> {
+pub async fn terminal_popout(app: tauri::AppHandle, window: tauri::WebviewWindow, id: String) -> Result<(), String> {
     if window.label() != "main" { return Err("Only the main window can detach a terminal.".into()); }
     if id.is_empty() || !id.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-') {
         return Err("Invalid terminal ID.".into());
@@ -243,37 +217,83 @@ pub async fn terminal_popout(app: tauri::AppHandle, window: tauri::WebviewWindow
             return Err("Terminal is no longer running.".into());
         }
     }
-    let label = format!("terminal-{id}");
-    if app.get_webview_window(&label).is_some() { return Err("Terminal is already detached.".into()); }
-    let safe = detached_name(&name);
-    let url = format!("index.html?terminal={id}&name={}", url_component(&safe));
-    tauri::WebviewWindowBuilder::new(&app, label, tauri::WebviewUrl::App(url.into()))
-        .title(title).inner_size(900.0, 560.0).min_inner_size(320.0, 200.0).visible(false)
+    // If the shared window already exists, raise it instead of creating a
+    // second one — the terminal moves in as a new tab on the frontend side.
+    if let Some(existing) = app.get_webview_window(DETACHED_LABEL) {
+        let _ = existing.unminimize();
+        let _ = existing.set_focus();
+        return Ok(());
+    }
+    tauri::WebviewWindowBuilder::new(&app, DETACHED_LABEL, tauri::WebviewUrl::App("index.html?detached=1".into()))
+        .title("Terminals").inner_size(900.0, 560.0).min_inner_size(320.0, 200.0).visible(false)
         .decorations(false)
         .build().map_err(|e| format!("Cannot open terminal window: {e}"))?;
     Ok(())
 }
 
+#[derive(Clone, serde::Deserialize)]
+pub struct ExternalTab {
+    pub name: String,
+    pub path: Option<PathBuf>,
+}
+
+/// Titles go on the Windows Terminal command line, so strip anything that
+/// could split commands or break quoting, and keep them short.
+fn sanitize_external_title(name: &str) -> String {
+    let cleaned: String = name
+        .chars()
+        .filter(|c| !c.is_control() && *c != ';' && *c != '"')
+        .take(64)
+        .collect();
+    let trimmed = cleaned.trim();
+    if trimmed.is_empty() { "Terminal".to_string() } else { trimmed.to_string() }
+}
+
 #[tauri::command]
-pub async fn terminal_open_external(app: tauri::AppHandle, path: PathBuf) -> Result<(), String> {
+pub async fn terminal_open_external(app: tauri::AppHandle, tabs: Vec<ExternalTab>) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let scope = app.fs_scope();
-        if !scope.is_allowed(&path) { return Err("Open the working folder first.".into()); }
-        let resolved = path.canonicalize().map_err(|e| e.to_string())?;
-        if !resolved.is_dir() || !scope.is_allowed(&resolved) { return Err("Working folder is unavailable or outside the selected scope.".into()); }
+        if tabs.is_empty() { return Err("No terminals to open.".into()); }
+        if tabs.len() > 8 { return Err("Too many terminals to open in one window.".into()); }
+        // Validate every folder before spawning anything so a bad path fails
+        // the whole operation instead of leaving a half-open window.
+        let mut resolved: Vec<(String, Option<PathBuf>)> = Vec::with_capacity(tabs.len());
+        for tab in tabs {
+            let name = sanitize_external_title(&tab.name);
+            let dir = match tab.path {
+                Some(path) => {
+                    let scope = app.fs_scope();
+                    if !scope.is_allowed(&path) { return Err("Open the working folder first.".into()); }
+                    let resolved = path.canonicalize().map_err(|e| e.to_string())?;
+                    if !resolved.is_dir() || !scope.is_allowed(&resolved) {
+                        return Err("Working folder is unavailable or outside the selected scope.".into());
+                    }
+                    Some(un_verbatim(&resolved))
+                }
+                None => None,
+            };
+            resolved.push((name, dir));
+        }
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
-            let working = un_verbatim(&resolved);
-            let result = std::process::Command::new("wt.exe")
-                .args(["-w", "new", "new-tab", "-d"]).arg(&working)
-                .arg("powershell.exe").arg("-NoLogo")
-                .creation_flags(0x08000000).status();
+            let mut command = std::process::Command::new("wt.exe");
+            command.arg("-w").arg("new");
+            for (index, (name, dir)) in resolved.iter().enumerate() {
+                if index > 0 { command.arg(";"); }
+                command.arg("new-tab");
+                if let Some(dir) = dir { command.arg("-d").arg(dir); }
+                command.arg("--title").arg(name);
+                command.arg("powershell.exe").arg("-NoLogo");
+            }
+            let result = command.creation_flags(0x08000000).status();
             if matches!(result, Ok(status) if status.success()) { return Ok(()); }
-            std::process::Command::new("powershell.exe")
-                .args(["-NoLogo", "-NoExit"]).current_dir(working)
-                .creation_flags(0x00000010).spawn()
-                .map_err(|e| format!("Cannot open an external terminal: {e}"))?;
+            // Fallback without Windows Terminal: one console window per tab.
+            for (_, dir) in &resolved {
+                let mut fallback = std::process::Command::new("powershell.exe");
+                fallback.args(["-NoLogo", "-NoExit"]).creation_flags(0x00000010);
+                if let Some(dir) = dir { fallback.current_dir(dir); }
+                fallback.spawn().map_err(|e| format!("Cannot open an external terminal: {e}"))?;
+            }
             Ok(())
         }
         #[cfg(not(windows))]
@@ -290,33 +310,6 @@ pub fn stop_all(app: &tauri::AppHandle) {
         .ok()
         .map(|mut sessions| std::mem::take(&mut *sessions));
     drop(removed);
-}
-
-#[cfg(test)]
-mod detached_name_tests {
-    use super::*;
-
-    #[test]
-    fn keeps_normal_names_and_trims_whitespace() {
-        assert_eq!(detached_name("Terminal 1"), "Terminal 1");
-        assert_eq!(detached_name("  Terminal 2  "), "Terminal 2");
-    }
-
-    #[test]
-    fn falls_back_for_empty_or_oversized_names() {
-        assert_eq!(detached_name(""), "Terminal");
-        assert_eq!(detached_name("   "), "Terminal");
-        assert_eq!(detached_name(&"x".repeat(100)), "Terminal");
-        assert_eq!(detached_name("a\nb"), "Terminal");
-    }
-
-    #[test]
-    fn percent_encodes_query_components() {
-        assert_eq!(url_component("Terminal 1"), "Terminal%201");
-        assert_eq!(url_component("PS C:\\Users"), "PS%20C%3A%5CUsers");
-        assert_eq!(url_component("héllo"), "h%C3%A9llo");
-        assert_eq!(url_component("a&b=c"), "a%26b%3Dc");
-    }
 }
 
 #[cfg(all(test, windows))]
@@ -354,6 +347,16 @@ mod tests {
             }
             std::thread::sleep(std::time::Duration::from_millis(20));
         }
+    }
+
+    #[test]
+    fn external_titles_are_safe_for_the_windows_terminal_command_line() {
+        assert_eq!(sanitize_external_title("Terminal 1"), "Terminal 1");
+        assert_eq!(sanitize_external_title("a;b"), "ab");
+        assert_eq!(sanitize_external_title("say \"hi\""), "say hi");
+        assert_eq!(sanitize_external_title("a\nb\tc"), "abc");
+        assert_eq!(sanitize_external_title("   "), "Terminal");
+        assert_eq!(sanitize_external_title("a".repeat(100).as_str()), "a".repeat(64));
     }
 
     #[test]

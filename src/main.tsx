@@ -9,12 +9,10 @@ import "@fontsource/cascadia-code/latin-600-italic.css";
 import App from "./App";
 import DetachedTerminal from "./DetachedTerminal";
 
-const params = new URLSearchParams(window.location.search);
-const detachedId = params.get("terminal");
-const detachedName = params.get("name");
+const detached = new URLSearchParams(window.location.search).get("detached");
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    {detachedId ? <DetachedTerminal id={detachedId} name={detachedName ?? "Terminal"} /> : <App />}
+    {detached ? <DetachedTerminal /> : <App />}
   </React.StrictMode>,
 );

@@ -661,7 +661,6 @@ p {
   cursor: default;
 }
 
-.terminal-external { width: auto; padding: 0 8px; flex-shrink: 0; }
 
 .terminal-drag-ghost {
   position: fixed;
@@ -706,6 +705,75 @@ body.terminal-dragging * {
 
 .detached-toolbar {
   flex-shrink: 0;
+}
+
+.detached-tabs {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+  padding: 4px 8px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.detached-tab-select {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 4px 0 0 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.detached-tab-select:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+
+.detached-tab-action {
+  border-radius: 0;
+}
+
+.detached-tab-action:last-child {
+  border-radius: 0 4px 4px 0;
+}
+
+.detached-panes {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.detached-pane {
+  flex: 1;
+  min-width: 0;
+}
+
+.detached-empty {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 24px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.detached-empty p {
+  margin: 0;
+  max-width: 48ch;
 }
 
 .detached-terminal-name {
