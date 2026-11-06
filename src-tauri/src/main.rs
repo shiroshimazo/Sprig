@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    personal_ide_lib::run()
+    sprig_lib::run()
 }

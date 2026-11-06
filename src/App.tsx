@@ -529,7 +529,7 @@ function App() {
               title="Files"
               onClick={() => setSidebarMode("files")}
             >
-              <HugeiconsIcon icon={File01Icon} size={18} aria-hidden="true" focusable="false" />
+              <HugeiconsIcon icon={File01Icon} size={12} aria-hidden="true" focusable="false" />
             </button>
             <button
               type="button"
@@ -538,7 +538,7 @@ function App() {
               title="Source Control"
               onClick={() => setSidebarMode("source")}
             >
-              <HugeiconsIcon icon={GitBranchIcon} size={18} aria-hidden="true" focusable="false" />
+              <HugeiconsIcon icon={GitBranchIcon} size={12} aria-hidden="true" focusable="false" />
             </button>
           </div>
         </aside>

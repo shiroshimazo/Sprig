@@ -241,7 +241,7 @@ mod tests {
     #[test]
     fn reads_text_and_lists_only_immediate_children() {
         let root = std::env::temp_dir().join(format!(
-            "personal-ide-files-{}-{}",
+            "sprig-files-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
