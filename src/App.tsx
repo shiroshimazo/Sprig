@@ -356,9 +356,9 @@ function App() {
   async function activateFile(path: string) {
     if (path === activePath.current) return;
     const cached = documents.current.get(path);
-    activePath.current = path;
-    setFilePath(path);
     if (cached) {
+      activePath.current = path;
+      setFilePath(path);
       setFileContent(cached.saved);
       setContentRevision((revision) => revision + 1);
       setFileError(null);
@@ -372,6 +372,8 @@ function App() {
       if (request !== readRequest.current) return;
       const document = { saved: content, current: content };
       documents.current.set(path, document);
+      activePath.current = path;
+      setFilePath(path);
       setFileContent(content);
       setContentRevision((revision) => revision + 1);
     } catch (error) {
