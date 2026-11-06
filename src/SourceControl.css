@@ -1,8 +1,6 @@
-.sidebar-switch { display: flex; gap: 4px; padding: 6px; border-bottom: 1px solid var(--border); }
-.sidebar-switch button, .source-control button { border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; background: var(--control); color: var(--text); cursor: pointer; }
-.sidebar-switch button[aria-pressed="true"] { background: #303030; border-color: #666; }
-.sidebar-switch button:hover, .source-control button:not(:disabled):hover { background: #303030; }
-.sidebar-switch button:focus-visible, .source-control button:focus-visible, .source-control textarea:focus-visible { outline: 2px solid #87b5ff; outline-offset: 2px; }
+.source-control button { border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; background: var(--control); color: var(--text); cursor: pointer; }
+.source-control button:not(:disabled):hover { background: #303030; }
+.source-control button:focus-visible, .source-control textarea:focus-visible { outline: 2px solid #87b5ff; outline-offset: 2px; }
 .source-control { padding: 10px 6px; }
 .source-control button:disabled { opacity: .45; cursor: default; }
 .source-toolbar, .source-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }

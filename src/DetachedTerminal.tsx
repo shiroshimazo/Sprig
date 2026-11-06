@@ -4,7 +4,7 @@ import { emitTo, listen } from "@tauri-apps/api/event";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowDownLeftIcon, CommandLineIcon, MultiplicationSignIcon } from "@hugeicons/core-free-icons";
+import { ArrowDownLeftIcon, CommandLineIcon, MultiplicationSignIcon, PlusSignIcon } from "@hugeicons/core-free-icons";
 import { createTerminalView } from "./terminalView";
 import { MAIN_LABEL } from "./terminalRelay";
 import type { DetachedWindowMessage, DetachedTerminalInfo, OwnerEnvelope, ViewMessage } from "./terminalRelay";
@@ -117,6 +117,7 @@ export default function DetachedTerminal() {
   const [tabs, setTabs] = useState<DetachedTerminalInfo[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [canCreate, setCanCreate] = useState(false);
   const everNonEmpty = useRef(false);
   const tabsRef = useRef<DetachedTerminalInfo[]>([]);
   tabsRef.current = tabs;
@@ -136,10 +137,12 @@ export default function DetachedTerminal() {
       const stopListen = await listen<DetachedWindowMessage>("detached-window", ({ payload }) => {
         if (disposed || payload.type !== "roster") return;
         const list = payload.terminals;
+        const added = list.find((tab) => !tabsRef.current.some((previous) => previous.id === tab.id));
+        setCanCreate(payload.canCreate);
         if (list.length > 0) everNonEmpty.current = true;
         tabsRef.current = list;
         setTabs(list);
-        setActiveId((current) => (current && list.some((tab) => tab.id === current) ? current : list[0]?.id ?? null));
+        setActiveId((current) => added?.id ?? (current && list.some((tab) => tab.id === current) ? current : list[0]?.id ?? null));
       });
       if (disposed) { stopListen(); return; }
       stop = stopListen;
@@ -218,6 +221,12 @@ export default function DetachedTerminal() {
               </div>
             );
           })}
+          <button className="terminal-tab-add detached-tab-action" aria-label="New terminal" title={canCreate ? "New terminal" : "Terminal limit reached (4 across both windows)"} disabled={!canCreate || !activeId} onClick={() => {
+            if (!activeId) return;
+            void emitTo(MAIN_LABEL, "detached-window", { type: "create", sourceId: activeId } satisfies DetachedWindowMessage).catch((error: unknown) => setError(String(error)));
+          }}>
+            <HugeiconsIcon icon={PlusSignIcon} size={13} aria-hidden="true" focusable="false" />
+          </button>
         </div>
       )}
       <div className="detached-panes">

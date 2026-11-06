@@ -8,7 +8,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { animate } from "animejs";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowUpRightIcon, CommandLineIcon, File01Icon, FolderOpenIcon, Menu01Icon, MultiplicationSignIcon, PlusSignIcon, SidebarLeftIcon } from "@hugeicons/core-free-icons";
+import { ArrowUpRightIcon, CommandLineIcon, File01Icon, FolderOpenIcon, GitBranchIcon, Menu01Icon, MultiplicationSignIcon, PlusSignIcon, SidebarLeftIcon, TerminalIcon } from "@hugeicons/core-free-icons";
 import { beyondDragThreshold, isOutsideWindow, type WindowBounds } from "./terminalDrag";
 import ResizeHandle from "./ResizeHandle";
 import FolderTree from "./FolderTree";
@@ -21,7 +21,7 @@ import "./App.css";
 
 const MAX_TERMINALS = 4;
 
-type TerminalTab = { id: string; name: string; cwd: string | null; detached?: boolean; sessionId?: string };
+type TerminalTab = { id: string; name: string; cwd: string | null; detached?: boolean; sessionId?: string; detachOnReady?: boolean };
 
 function App() {
   const [sidebarVisible, setSidebarVisible] = useState(true);
@@ -45,16 +45,18 @@ function App() {
   const pendingRef = useRef(pendingDetach);
   pendingRef.current = pendingDetach;
   const rosterSignature = useRef("\0");
+  const createDetached = useRef<(sourceId: string) => void>(() => {});
   const emitRoster = useCallback(() => {
     if (!isTauri()) return;
     const pending = pendingRef.current;
     const list = terminalsRef.current
       .filter((tab) => tab.sessionId && (tab.detached || pending.includes(tab.id)))
       .map(({ sessionId, name, cwd }) => ({ id: sessionId!, name, cwd }));
-    const signature = list.map((tab) => `${tab.id}:${tab.name}:${tab.cwd ?? ""}`).join("|");
+    const canCreate = terminalsRef.current.length < MAX_TERMINALS;
+    const signature = JSON.stringify({ list, canCreate });
     if (rosterSignature.current === signature) return;
     rosterSignature.current = signature;
-    void emitTo(DETACHED_LABEL, "detached-window", { type: "roster", terminals: list } satisfies DetachedWindowMessage).catch(() => {});
+    void emitTo(DETACHED_LABEL, "detached-window", { type: "roster", terminals: list, canCreate } satisfies DetachedWindowMessage).catch(() => {});
   }, []);
   useEffect(() => { emitRoster(); }, [terminals, pendingDetach, emitRoster]);
   // Drop pending entries once they detach (handoff done) or after a short
@@ -72,6 +74,7 @@ function App() {
     let stop: (() => void) | undefined;
     void listen<DetachedWindowMessage>("detached-window", ({ payload }) => {
       if (payload?.type === "ready") { rosterSignature.current = "\0"; emitRoster(); }
+      else if (payload?.type === "create") createDetached.current(payload.sourceId);
     }).then((unlisten) => { if (disposed) unlisten(); else stop = unlisten; }).catch(() => {});
     return () => { disposed = true; stop?.(); };
   }, [emitRoster]);
@@ -83,6 +86,19 @@ function App() {
     setPendingDetach((current) => (current.includes(id) ? current : [...current, id]));
     terminalViews.current.get(id)?.popOut();
   }, []);
+  createDetached.current = (sourceId) => {
+    const current = terminalsRef.current;
+    const source = current.find((tab) => tab.sessionId === sourceId && tab.detached);
+    if (!source || current.length >= MAX_TERMINALS) return;
+    const tab = { id: crypto.randomUUID(), name: `Terminal ${nextTerminalNumber.current++}`, cwd: source.cwd, detachOnReady: true };
+    setTerminals((latest) => latest.length < MAX_TERMINALS && latest.some((item) => item.sessionId === sourceId && item.detached) ? [...latest, tab] : latest);
+  };
+  useEffect(() => {
+    const ready = terminals.filter((tab) => tab.detachOnReady && tab.sessionId);
+    if (!ready.length) return;
+    for (const tab of ready) requestPopOut(tab.id);
+    setTerminals((current) => current.map((tab) => ready.some((item) => item.id === tab.id) ? { ...tab, detachOnReady: false } : tab));
+  }, [terminals, requestPopOut]);
   const dragGhostRef = useRef<HTMLDivElement>(null);
   const [dragGhost, setDragGhost] = useState<{ name: string } | null>(null);
   const tabDrag = useRef<{ pointerId: number; startX: number; startY: number; bounds: WindowBounds; tabId: string; tabName: string; active: boolean } | null>(null);
@@ -491,7 +507,7 @@ function App() {
             aria-expanded={terminalVisible}
             onClick={() => setTerminalVisible(!terminalVisible)}
           >
-            <HugeiconsIcon icon={CommandLineIcon} size={13} aria-hidden="true" focusable="false" />
+            <HugeiconsIcon icon={TerminalIcon} size={13} aria-hidden="true" focusable="false" />
           </button>
         </div>
       </header>
@@ -502,11 +518,29 @@ function App() {
           <div className="panel-header">
             <h2 id="files-heading">{sidebarMode === "files" ? "Files" : "Source Control"}</h2>
           </div>
-          <div className="sidebar-switch" aria-label="Sidebar views">
-            <button aria-pressed={sidebarMode === "files"} onClick={() => setSidebarMode("files")}>Files</button>
-            <button aria-pressed={sidebarMode === "source"} onClick={() => setSidebarMode("source")}>Source Control</button>
+          <div className="sidebar-content">
+            {sidebarMode === "source" ? <SourceControl control={sourceControl} path={folderPath} /> : folderPath ? <FolderTree key={folderPath} path={folderPath} name={folderName ?? folderPath} activePath={filePath} onOpenFile={openFile} /> : <p className="sidebar-empty">No folder open.</p>}
           </div>
-          {sidebarMode === "source" ? <SourceControl control={sourceControl} path={folderPath} /> : folderPath ? <FolderTree key={folderPath} path={folderPath} name={folderName ?? folderPath} activePath={filePath} onOpenFile={openFile} /> : <p className="sidebar-empty">No folder open.</p>}
+          <div className="sidebar-switch" aria-label="Sidebar views">
+            <button
+              type="button"
+              aria-pressed={sidebarMode === "files"}
+              aria-label="Files"
+              title="Files"
+              onClick={() => setSidebarMode("files")}
+            >
+              <HugeiconsIcon icon={File01Icon} size={18} aria-hidden="true" focusable="false" />
+            </button>
+            <button
+              type="button"
+              aria-pressed={sidebarMode === "source"}
+              aria-label="Source Control"
+              title="Source Control"
+              onClick={() => setSidebarMode("source")}
+            >
+              <HugeiconsIcon icon={GitBranchIcon} size={18} aria-hidden="true" focusable="false" />
+            </button>
+          </div>
         </aside>
         {sidebarVisible && <ResizeHandle panel="files-panel" label="Resize sidebar" orientation="vertical" value={sidebarWidth} onResize={setSidebarWidth} />}
 

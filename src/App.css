@@ -311,10 +311,58 @@ p {
 
 .sidebar {
   min-width: 0;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: var(--background);
   font-size: 13px;
+}
+
+.sidebar-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
   padding: 4px;
+}
+
+.sidebar-switch {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  padding: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.sidebar-switch button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.sidebar-switch button:hover {
+  background: #303030;
+  color: var(--text);
+}
+
+.sidebar-switch button[aria-pressed="true"] {
+  background: #303030;
+  border-color: #666;
+  color: var(--text);
+}
+
+.sidebar-switch button:focus-visible {
+  outline: 2px solid #87b5ff;
+  outline-offset: 2px;
 }
 
 .beui-shared-bg {

@@ -23,7 +23,8 @@ export type DetachedTerminalInfo = { id: string; name: string; cwd: string | nul
 // Window-level messages between the shared detached window and the main window.
 export type DetachedWindowMessage =
   | { type: "ready" }
-  | { type: "roster"; terminals: DetachedTerminalInfo[] };
+  | { type: "create"; sourceId: string }
+  | { type: "roster"; terminals: DetachedTerminalInfo[]; canCreate: boolean };
 
 // Pause delivery during handoff so the snapshot and live output never overlap.
 export class TerminalRelay {
