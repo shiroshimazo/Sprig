@@ -4,7 +4,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { emitTo, listen } from "@tauri-apps/api/event";
 import { DETACHED_LABEL } from "./terminalRelay";
 import type { DetachedWindowMessage } from "./terminalRelay";
-import { open, save } from "@tauri-apps/plugin-dialog";
+import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { animate } from "animejs";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -32,7 +32,7 @@ function App() {
   const [openTabs, setOpenTabs] = useState<string[]>([]);
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
   const [folderPath, setFolderPath] = useState<string | null>(null);
-  const [createdPath, setCreatedPath] = useState<string | null>(null);
+  const [creation, setCreation] = useState<{ kind: "file" | "folder" } | null>(null);
   const [sidebarMode, setSidebarMode] = useState<"files" | "source">("files");
   const sourceControl = useSourceControl(folderPath, sidebarMode === "source");
   const nextTerminalNumber = useRef(2);
@@ -405,28 +405,11 @@ function App() {
     }
   }
 
-  async function createFile() {
-    if (dialogActive.current) return;
-    setDialogError(null);
-    if (!isTauri()) {
-      setDialogError("Open the desktop app to create a file.");
-      return;
-    }
-    dialogActive.current = true;
-    setDialogPending(true);
-    try {
-      const path = await save({ title: "New File", defaultPath: folderPath ? `${folderPath}/untitled.txt` : "untitled.txt" });
-      if (path === null) return;
-      const created = await invoke<string>("create_file", { path });
-      setCreatedPath(created);
-      setSidebarMode("files");
-      await openFile(created);
-    } catch (error) {
-      setDialogError(`Cannot create file: ${error instanceof Error ? error.message : String(error)}`);
-    } finally {
-      dialogActive.current = false;
-      setDialogPending(false);
-    }
+  function startCreation(kind: "file" | "folder") {
+    if (!folderPath) return;
+    setSidebarMode("files");
+    setSidebarVisible(true);
+    setCreation({ kind });
   }
 
   async function selectPath(directory: boolean) {
@@ -496,10 +479,11 @@ function App() {
           </button>
           {fileMenuOpen && (
             <div className="file-menu" id="file-menu" role="menu" aria-label="File actions">
-              <button role="menuitem" disabled={dialogPending} onClick={() => { setFileMenuOpen(false); void createFile(); }}>
+              <button role="menuitem" disabled={dialogPending || !folderPath} onClick={() => { setFileMenuOpen(false); startCreation("file"); }}>
                 <HugeiconsIcon icon={PlusSignIcon} size={13} aria-hidden="true" focusable="false" />
                 New File
               </button>
+              <button role="menuitem" disabled={dialogPending || !folderPath} onClick={() => { setFileMenuOpen(false); startCreation("folder"); }}>New Folder</button>
               <button role="menuitem" disabled={!filePath || savePending} onClick={() => { setFileMenuOpen(false); void saveFile(); }}>
                 {savePending ? "Saving..." : "Save"}
               </button>
@@ -548,9 +532,13 @@ function App() {
         <aside id="files-panel" className="sidebar" hidden={!sidebarVisible} aria-labelledby="files-heading">
           <div className="panel-header">
             <h2 id="files-heading">{sidebarMode === "files" ? "Files" : "Source Control"}</h2>
+            {sidebarMode === "files" && <div className="creation-actions">
+              <button disabled={!folderPath} title="New file" aria-label="New file" onClick={() => startCreation("file")}><HugeiconsIcon icon={PlusSignIcon} size={13} aria-hidden="true" /> File</button>
+              <button disabled={!folderPath} title="New folder" aria-label="New folder" onClick={() => startCreation("folder")}><HugeiconsIcon icon={PlusSignIcon} size={13} aria-hidden="true" /> Folder</button>
+            </div>}
           </div>
           <div className="sidebar-content">
-            {sidebarMode === "source" ? <SourceControl control={sourceControl} path={folderPath} /> : folderPath ? <FolderTree key={folderPath} path={folderPath} name={folderName ?? folderPath} activePath={filePath} onOpenFile={openFile} createdPath={createdPath} /> : <p className="sidebar-empty">No folder open.</p>}
+            {sidebarMode === "source" ? <SourceControl control={sourceControl} path={folderPath} /> : folderPath ? <FolderTree key={folderPath} path={folderPath} name={folderName ?? folderPath} activePath={filePath} onOpenFile={openFile} creation={creation} onCreationDone={() => setCreation(null)} /> : <p className="sidebar-empty">No folder open.</p>}
           </div>
           <div className="sidebar-switch" aria-label="Sidebar views">
             <button
@@ -646,7 +634,7 @@ function App() {
                 <h2>No file open</h2>
                 <p>{folderPath ? "Choose a file from the sidebar, or open another file." : "Open a file to edit, or a folder to browse your code."}</p>
                 <div className="file-actions empty-actions" aria-label="Open a workspace">
-                  <button disabled={dialogPending} onClick={() => void createFile()}>
+                  <button disabled={dialogPending || !folderPath} title={folderPath ? "New file" : "Open a folder first"} onClick={() => startCreation("file")}>
                     <HugeiconsIcon icon={PlusSignIcon} size={18} aria-hidden="true" focusable="false" />
                     New File
                   </button>

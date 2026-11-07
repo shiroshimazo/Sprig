@@ -36,6 +36,15 @@ body {
   margin: 0;
 }
 
+.creation-actions { display: flex; gap: 6px; }
+.creation-actions button { display: inline-flex; align-items: center; gap: 3px; padding: 4px; border: 0; color: var(--text); background: transparent; cursor: pointer; }
+.creation-actions button:hover { background: var(--control); }
+.creation-actions button:disabled { opacity: .4; cursor: default; }
+.inline-create { padding: 3px 8px 3px 0; }
+.inline-create input { width: 100%; min-width: 0; padding: 4px 6px; background: var(--control); color: var(--text); border: 1px solid var(--text-muted); border-radius: 2px; font: inherit; }
+.inline-create input[aria-invalid="true"] { border-color: #fda4af; }
+.inline-create p { margin: 5px 0; font-size: 12px; color: #fda4af; overflow-wrap: anywhere; }
+
 .unsaved-dialog {
   width: min(440px, calc(100vw - 32px));
   padding: 24px;

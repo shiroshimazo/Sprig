@@ -27,6 +27,7 @@ pub fn run() {
             git::git_action,
             files::read_file,
             files::create_file,
+            files::create_folder,
             files::save_file,
             terminal::terminal_start,
             terminal::terminal_write,

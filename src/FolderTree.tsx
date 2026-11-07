@@ -20,18 +20,26 @@ type FolderTreeProps = {
   name?: string;
   activePath: string | null;
   onOpenFile: (path: string) => void;
-  createdPath: string | null;
+  creation: { kind: "file" | "folder" } | null;
+  onCreationDone: () => void;
 };
 
 const RETRY_SUFFIX = "::retry";
 const LOADING_SUFFIX = "::loading";
 const EMPTY_SUFFIX = "::empty";
 
-export default function FolderTree({ path, name = path, activePath, onOpenFile, createdPath }: FolderTreeProps) {
+export default function FolderTree({ path, name = path, activePath, onOpenFile, creation, onCreationDone }: FolderTreeProps) {
   const cache = useRef(new Map<string, CacheEntry>());
   const pending = useRef(new Set<string>());
   const reload = useRef(new Set<string>());
-  const lastCreated = useRef(createdPath);
+  const lastCreation = useRef<typeof creation>(null);
+  const selectedFolder = useRef(path);
+  const [draft, setDraft] = useState<{ parent: string; kind: "file" | "folder" } | null>(null);
+  const [entryName, setEntryName] = useState("");
+  const [creationError, setCreationError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const creatingRef = useRef(false);
+  const input = useRef<HTMLInputElement>(null);
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
   const [, setVersion] = useState(0);
   const bump = useCallback(() => setVersion((version) => version + 1), []);
@@ -58,13 +66,34 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
   }, [bump]);
 
   useEffect(() => {
-    if (createdPath === lastCreated.current) return;
-    lastCreated.current = createdPath;
-    cache.current.clear();
-    for (const folder of pending.current) reload.current.add(folder);
-    for (const folder of expandedIds) void load(folder);
-    bump();
-  }, [createdPath, expandedIds, load, bump]);
+    if (!creation || creation === lastCreation.current || creatingRef.current) return;
+    lastCreation.current = creation;
+    const parent = selectedFolder.current;
+    setDraft({ parent, kind: creation.kind });
+    setEntryName("");
+    setCreationError(null);
+    setExpandedIds((ids) => ids.includes(parent) ? ids : [...ids, parent]);
+    if (!cache.current.has(parent)) void load(parent);
+  }, [creation, load]);
+
+  useEffect(() => { if (draft && !creating) input.current?.focus(); }, [draft, creating]);
+
+  async function submitCreation() {
+    if (!draft || creatingRef.current) return;
+    if (!entryName.trim()) { setCreationError("Enter a name."); return; }
+    creatingRef.current = true;
+    setCreating(true);
+    setCreationError(null);
+    try {
+      const created = await invoke<string>(draft.kind === "file" ? "create_file" : "create_folder", { parent: draft.parent, name: entryName });
+      if (pending.current.has(draft.parent)) reload.current.add(draft.parent);
+      else await load(draft.parent);
+      setDraft(null);
+      onCreationDone();
+      if (draft.kind === "file") onOpenFile(created);
+    } catch (error) { setCreationError(error instanceof Error ? error.message : String(error)); }
+    finally { creatingRef.current = false; setCreating(false); }
+  }
 
   const handleExpand = useCallback((next: string[]) => {
     const open = new Set(expandedIds);
@@ -78,6 +107,7 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
   }, [expandedIds, load]);
 
   const handleValueChange = useCallback((value: string) => {
+    if (value === path) { selectedFolder.current = path; return; }
     if (value.endsWith(RETRY_SUFFIX)) {
       void load(value.slice(0, -RETRY_SUFFIX.length));
       return;
@@ -87,11 +117,12 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
     for (const cached of cache.current.values()) {
       const hit = cached.entries?.find((entry) => entry.path === value);
       if (hit) {
+        selectedFolder.current = hit.isDirectory && !hit.isSymlink ? hit.path : value.slice(0, Math.max(value.lastIndexOf("/"), value.lastIndexOf("\\")));
         if (!(hit.isDirectory && !hit.isSymlink)) onOpenFile(value);
         return;
       }
     }
-  }, [load, onOpenFile]);
+  }, [load, onOpenFile, path]);
 
   const renderEntry = (entry: FileEntry): ReactNode => {
     if (entry.isDirectory && !entry.isSymlink) {
@@ -131,6 +162,15 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
     }
     return (
       <FileTreeFolder key={folderPath} value={folderPath} name={folderName} title={folderPath}>
+        {draft?.parent === folderPath && <FileTreeFile value={`${folderPath}::create`} name={`New ${draft.kind}`} content={
+          <form className="inline-create" onSubmit={(event) => { event.preventDefault(); void submitCreation(); }} onKeyDown={(event) => {
+            event.stopPropagation();
+            if (event.key === "Escape" && !creatingRef.current) { event.preventDefault(); setDraft(null); onCreationDone(); }
+          }}>
+            <input ref={input} aria-label={`New ${draft.kind} name`} aria-invalid={!!creationError} aria-describedby={creationError ? "creation-error" : undefined} placeholder={draft.kind === "file" ? "File name" : "Folder name"} value={entryName} disabled={creating} onChange={(event) => setEntryName(event.target.value)} autoComplete="off" spellCheck={false} />
+            {creationError && <p id="creation-error" role="alert">{creationError}</p>}
+          </form>
+        } />}
         {children}
       </FileTreeFolder>
     );

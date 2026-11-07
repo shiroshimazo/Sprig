@@ -23,28 +23,68 @@ fn create_empty_file(path: &Path) -> Result<(), String> {
         })
 }
 
+fn validate_name(name: &str) -> Result<(), String> {
+    let stem = name.split('.').next().unwrap_or("").to_ascii_uppercase();
+    if name.is_empty()
+        || name == "."
+        || name == ".."
+        || name.ends_with([' ', '.'])
+        || name
+            .chars()
+            .any(|c| c.is_control() || "\\/:*?\"<>|".contains(c))
+        || matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || (stem.len() == 4
+            && (stem.starts_with("COM") || stem.starts_with("LPT"))
+            && matches!(stem.as_bytes()[3], b'1'..=b'9'))
+    {
+        return Err("Enter a valid name without path separators or reserved characters.".into());
+    }
+    Ok(())
+}
+
+fn create_entry(
+    app: &tauri::AppHandle,
+    parent: &Path,
+    name: &str,
+    directory: bool,
+) -> Result<PathBuf, String> {
+    validate_name(name)?;
+    let parent = authorized_path(app, parent)?;
+    if !parent.is_dir() {
+        return Err("Choose a folder for the new item.".into());
+    }
+    let path = parent.join(name);
+    if !app.fs_scope().is_allowed(&path) {
+        return Err("Destination is outside the opened folder.".into());
+    }
+    if directory {
+        fs::create_dir(&path).map_err(|e| format!("Cannot create folder: {e}"))?;
+    } else {
+        create_empty_file(&path)?;
+    }
+    Ok(path)
+}
+
 #[tauri::command]
-pub async fn create_file(app: tauri::AppHandle, path: PathBuf) -> Result<PathBuf, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let scope = app.fs_scope();
-        if !path.is_absolute() || !scope.is_allowed(&path) {
-            return Err("Choose a location through the New File dialog first.".into());
-        }
-        let name = path.file_name().ok_or("Choose a file name.")?;
-        let parent = path
-            .parent()
-            .ok_or("Choose a destination folder.")?
-            .canonicalize()
-            .map_err(|e| format!("Cannot access destination folder: {e}"))?;
-        let resolved = parent.join(name);
-        if !scope.is_allowed(&resolved) {
-            return Err("Destination is outside the selected files and folders.".into());
-        }
-        create_empty_file(&resolved)?;
-        Ok(resolved)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+pub async fn create_file(
+    app: tauri::AppHandle,
+    parent: PathBuf,
+    name: String,
+) -> Result<PathBuf, String> {
+    tauri::async_runtime::spawn_blocking(move || create_entry(&app, &parent, &name, false))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn create_folder(
+    app: tauri::AppHandle,
+    parent: PathBuf,
+    name: String,
+) -> Result<PathBuf, String> {
+    tauri::async_runtime::spawn_blocking(move || create_entry(&app, &parent, &name, true))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 fn check_unchanged(path: &Path, expected: &str) -> Result<(), String> {
@@ -192,6 +232,29 @@ pub async fn list_directory(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn validates_inline_names() {
+        for name in [
+            "",
+            ".",
+            "..",
+            "../outside",
+            "a/b",
+            "a\\b",
+            "C:drive",
+            "a\n",
+            "name.",
+            "name ",
+            "CON.txt",
+            "LPT1",
+        ] {
+            assert!(validate_name(name).is_err(), "{name}");
+        }
+        for name in ["new file.ts", ".gitignore", "项目", "src"] {
+            assert!(validate_name(name).is_ok());
+        }
+    }
 
     #[test]
     fn creates_empty_file_without_overwriting_existing_paths() {

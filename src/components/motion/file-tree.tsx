@@ -21,6 +21,7 @@ import { EASE_OUT, SPRING_LAYOUT, SPRING_SWAP } from "../../lib/ease";
 import { cn } from "../../lib/utils";
 
 type FileTreeItem = {
+  content?: ReactNode;
   value: string;
   name: string;
   type: "file" | "folder";
@@ -42,6 +43,7 @@ export interface FileTreeFolderProps {
 }
 
 export interface FileTreeFileProps {
+  content?: ReactNode;
   value: string;
   name: string;
   icon?: ReactNode;
@@ -152,6 +154,7 @@ function itemsFromChildren(children: ReactNode): FileTreeItem[] {
     if (child.type === FileTreeFile) {
       const props = child.props as FileTreeFileProps;
       items.push({
+        content: props.content,
         value: props.value,
         name: props.name,
         type: "file",
@@ -336,6 +339,12 @@ export function FileTree({
           const isFolder = row.item.type === "folder";
           const isOpen = isFolder && expanded.has(row.item.value);
           const isSelected = selectedId === row.item.value;
+
+          if (row.item.content) return (
+            <div key={row.item.value} role="treeitem" aria-label={row.item.name} aria-level={row.depth + 1} style={{ paddingLeft: 8 + row.depth * indent }}>
+              {row.item.content}
+            </div>
+          );
 
           return (
             <motion.div
