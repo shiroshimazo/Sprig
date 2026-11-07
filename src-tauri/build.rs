@@ -5,6 +5,7 @@ fn main() {
             "git_snapshot",
             "git_action",
             "read_file",
+            "create_file",
             "list_directory",
             "save_file",
             "terminal_start",

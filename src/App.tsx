@@ -4,7 +4,7 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { emitTo, listen } from "@tauri-apps/api/event";
 import { DETACHED_LABEL } from "./terminalRelay";
 import type { DetachedWindowMessage } from "./terminalRelay";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { animate } from "animejs";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -32,6 +32,7 @@ function App() {
   const [openTabs, setOpenTabs] = useState<string[]>([]);
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
   const [folderPath, setFolderPath] = useState<string | null>(null);
+  const [createdPath, setCreatedPath] = useState<string | null>(null);
   const [sidebarMode, setSidebarMode] = useState<"files" | "source">("files");
   const sourceControl = useSourceControl(folderPath, sidebarMode === "source");
   const nextTerminalNumber = useRef(2);
@@ -404,6 +405,30 @@ function App() {
     }
   }
 
+  async function createFile() {
+    if (dialogActive.current) return;
+    setDialogError(null);
+    if (!isTauri()) {
+      setDialogError("Open the desktop app to create a file.");
+      return;
+    }
+    dialogActive.current = true;
+    setDialogPending(true);
+    try {
+      const path = await save({ title: "New File", defaultPath: folderPath ? `${folderPath}/untitled.txt` : "untitled.txt" });
+      if (path === null) return;
+      const created = await invoke<string>("create_file", { path });
+      setCreatedPath(created);
+      setSidebarMode("files");
+      await openFile(created);
+    } catch (error) {
+      setDialogError(`Cannot create file: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      dialogActive.current = false;
+      setDialogPending(false);
+    }
+  }
+
   async function selectPath(directory: boolean) {
     if (dialogActive.current) return;
     setDialogError(null);
@@ -471,6 +496,10 @@ function App() {
           </button>
           {fileMenuOpen && (
             <div className="file-menu" id="file-menu" role="menu" aria-label="File actions">
+              <button role="menuitem" disabled={dialogPending} onClick={() => { setFileMenuOpen(false); void createFile(); }}>
+                <HugeiconsIcon icon={PlusSignIcon} size={13} aria-hidden="true" focusable="false" />
+                New File
+              </button>
               <button role="menuitem" disabled={!filePath || savePending} onClick={() => { setFileMenuOpen(false); void saveFile(); }}>
                 {savePending ? "Saving..." : "Save"}
               </button>
@@ -521,7 +550,7 @@ function App() {
             <h2 id="files-heading">{sidebarMode === "files" ? "Files" : "Source Control"}</h2>
           </div>
           <div className="sidebar-content">
-            {sidebarMode === "source" ? <SourceControl control={sourceControl} path={folderPath} /> : folderPath ? <FolderTree key={folderPath} path={folderPath} name={folderName ?? folderPath} activePath={filePath} onOpenFile={openFile} /> : <p className="sidebar-empty">No folder open.</p>}
+            {sidebarMode === "source" ? <SourceControl control={sourceControl} path={folderPath} /> : folderPath ? <FolderTree key={folderPath} path={folderPath} name={folderName ?? folderPath} activePath={filePath} onOpenFile={openFile} createdPath={createdPath} /> : <p className="sidebar-empty">No folder open.</p>}
           </div>
           <div className="sidebar-switch" aria-label="Sidebar views">
             <button
@@ -617,6 +646,10 @@ function App() {
                 <h2>No file open</h2>
                 <p>{folderPath ? "Choose a file from the sidebar, or open another file." : "Open a file to edit, or a folder to browse your code."}</p>
                 <div className="file-actions empty-actions" aria-label="Open a workspace">
+                  <button disabled={dialogPending} onClick={() => void createFile()}>
+                    <HugeiconsIcon icon={PlusSignIcon} size={18} aria-hidden="true" focusable="false" />
+                    New File
+                  </button>
                   <button disabled={dialogPending} onClick={() => void selectPath(false)}>
                     <HugeiconsIcon icon={File01Icon} size={13} aria-hidden="true" focusable="false" />
                     Open File

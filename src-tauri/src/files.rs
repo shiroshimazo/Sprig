@@ -8,6 +8,45 @@ use tauri_plugin_fs::FsExt;
 
 const MAX_FILE_BYTES: u64 = 10 * 1024 * 1024;
 
+fn create_empty_file(path: &Path) -> Result<(), String> {
+    fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .map(|_| ())
+        .map_err(|error| {
+            if error.kind() == std::io::ErrorKind::AlreadyExists {
+                "A file already exists at this path. Choose a different name.".into()
+            } else {
+                format!("Cannot create file: {error}")
+            }
+        })
+}
+
+#[tauri::command]
+pub async fn create_file(app: tauri::AppHandle, path: PathBuf) -> Result<PathBuf, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let scope = app.fs_scope();
+        if !path.is_absolute() || !scope.is_allowed(&path) {
+            return Err("Choose a location through the New File dialog first.".into());
+        }
+        let name = path.file_name().ok_or("Choose a file name.")?;
+        let parent = path
+            .parent()
+            .ok_or("Choose a destination folder.")?
+            .canonicalize()
+            .map_err(|e| format!("Cannot access destination folder: {e}"))?;
+        let resolved = parent.join(name);
+        if !scope.is_allowed(&resolved) {
+            return Err("Destination is outside the selected files and folders.".into());
+        }
+        create_empty_file(&resolved)?;
+        Ok(resolved)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 fn check_unchanged(path: &Path, expected: &str) -> Result<(), String> {
     let file =
         fs::File::open(path).map_err(|e| format!("Cannot verify file before saving: {e}"))?;
@@ -153,6 +192,23 @@ pub async fn list_directory(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn creates_empty_file_without_overwriting_existing_paths() {
+        let folder = tempfile::tempdir().unwrap();
+        let path = folder.path().join("新 file.ts");
+        create_empty_file(&path).unwrap();
+        assert_eq!(read_text(&path).unwrap(), "");
+        write_text(&path, "keep this", "").unwrap();
+        assert!(
+            create_empty_file(&path)
+                .unwrap_err()
+                .contains("already exists")
+        );
+        assert_eq!(read_text(&path).unwrap(), "keep this");
+        assert!(create_empty_file(folder.path()).is_err());
+        assert!(create_empty_file(&folder.path().join("missing/file.ts")).is_err());
+    }
 
     #[test]
     fn unicode_paths_and_readonly_save_failure_preserve_content() {

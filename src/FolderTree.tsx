@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { FileTree, FileTreeFile, FileTreeFolder } from "./components/motion/file-tree";
 
@@ -20,20 +20,23 @@ type FolderTreeProps = {
   name?: string;
   activePath: string | null;
   onOpenFile: (path: string) => void;
+  createdPath: string | null;
 };
 
 const RETRY_SUFFIX = "::retry";
 const LOADING_SUFFIX = "::loading";
 const EMPTY_SUFFIX = "::empty";
 
-export default function FolderTree({ path, name = path, activePath, onOpenFile }: FolderTreeProps) {
+export default function FolderTree({ path, name = path, activePath, onOpenFile, createdPath }: FolderTreeProps) {
   const cache = useRef(new Map<string, CacheEntry>());
   const pending = useRef(new Set<string>());
+  const reload = useRef(new Set<string>());
+  const lastCreated = useRef(createdPath);
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
   const [, setVersion] = useState(0);
   const bump = useCallback(() => setVersion((version) => version + 1), []);
 
-  const load = useCallback(async (folder: string) => {
+  const load = useCallback(async (folder: string): Promise<void> => {
     if (pending.current.has(folder)) return;
     pending.current.add(folder);
     const previous = cache.current.get(folder);
@@ -50,8 +53,18 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile }
     } finally {
       pending.current.delete(folder);
       bump();
+      if (reload.current.delete(folder)) void load(folder);
     }
   }, [bump]);
+
+  useEffect(() => {
+    if (createdPath === lastCreated.current) return;
+    lastCreated.current = createdPath;
+    cache.current.clear();
+    for (const folder of pending.current) reload.current.add(folder);
+    for (const folder of expandedIds) void load(folder);
+    bump();
+  }, [createdPath, expandedIds, load, bump]);
 
   const handleExpand = useCallback((next: string[]) => {
     const open = new Set(expandedIds);
