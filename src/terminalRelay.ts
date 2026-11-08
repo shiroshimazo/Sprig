@@ -1,3 +1,5 @@
+import type { TerminalIconId } from "./terminalIcons";
+
 export const DETACHED_LABEL = "detached-terminals";
 export const MAIN_LABEL = "main";
 
@@ -18,7 +20,7 @@ export type OwnerMessage = TerminalEvent
 
 export type OwnerEnvelope = { id: string; message: OwnerMessage };
 
-export type DetachedTerminalInfo = { id: string; name: string; cwd: string | null };
+export type DetachedTerminalInfo = { id: string; name: string; cwd: string | null; icon?: TerminalIconId };
 
 // Window-level messages between the shared detached window and the main window.
 export type DetachedWindowMessage =

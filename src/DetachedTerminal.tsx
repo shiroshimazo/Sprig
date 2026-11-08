@@ -9,6 +9,7 @@ import { createTerminalView } from "./terminalView";
 import { MAIN_LABEL } from "./terminalRelay";
 import type { DetachedWindowMessage, DetachedTerminalInfo, OwnerEnvelope, ViewMessage } from "./terminalRelay";
 import WindowControls from "./WindowControls";
+import TerminalTabIcon from "./TerminalTabIcon";
 
 // One PTY-backed xterm view per hosted terminal. The shell never kills a
 // session on its own — closing the window docks everything back through the
@@ -210,6 +211,7 @@ export default function DetachedTerminal() {
                   onClick={() => setActiveId(tab.id)}
                   onKeyDown={(event) => onTabKeyDown(event, tab)}
                 >
+                  <TerminalTabIcon value={tab.icon} />
                   {tab.name}
                 </button>
                 <button className="terminal-tab-add detached-tab-action" aria-label={`Dock ${tab.name} back to the main window`} title="Dock back to main window" onClick={() => dockTab(tab.id)}>

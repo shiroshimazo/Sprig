@@ -2,12 +2,15 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { handleShiftEnter } from "./terminalKeys";
+import { isTerminalIcon } from "./terminalIcons";
+import type { TerminalIconId } from "./terminalIcons";
 import "@xterm/xterm/css/xterm.css";
 
 export function createTerminalView(element: HTMLElement, handlers: {
   input: (data: string) => void;
   resize: (cols: number, rows: number) => void;
   canFit: () => boolean;
+  appChanged?: (icon: TerminalIconId) => void;
 }) {
   const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const terminal = new Terminal({
@@ -47,6 +50,13 @@ export function createTerminalView(element: HTMLElement, handlers: {
     return true;
   });
   const input = terminal.onData(handlers.input);
+  const app = terminal.parser.registerOscHandler(777, (data) => {
+    const prefix = "sprig;app=";
+    if (!data.startsWith(prefix)) return false;
+    const icon = data.slice(prefix.length);
+    if (isTerminalIcon(icon)) handlers.appChanged?.(icon);
+    return true;
+  });
   const dimensions = terminal.onResize(({ cols, rows }) => handlers.resize(cols, rows));
   const fit = () => {
     if (!disposed && handlers.canFit() && element.clientWidth > 0 && element.clientHeight > 0) fitAddon.fit();
@@ -57,6 +67,6 @@ export function createTerminalView(element: HTMLElement, handlers: {
   return { terminal, fit, report, dispose: () => {
     disposed = true;
     motion.removeEventListener("change", updateMotion);
-    input.dispose(); dimensions.dispose(); observer.disconnect(); terminal.dispose();
+    input.dispose(); app.dispose(); dimensions.dispose(); observer.disconnect(); terminal.dispose();
   } };
 }

@@ -6,11 +6,12 @@ import { SerializeAddon } from "@xterm/addon-serialize";
 import { createTerminalView } from "./terminalView";
 import { DETACHED_LABEL, TerminalRelay } from "./terminalRelay";
 import type { TerminalEvent, OwnerEnvelope, OwnerMessage, ViewMessage } from "./terminalRelay";
+import type { TerminalIconId } from "./terminalIcons";
 
 export type TerminalPanelHandle = { popOut: () => void };
 
-export default function TerminalPanel({ cwd, name, onDetachedChange, onCloseRequested, onSessionReady, ref }: {
-  cwd: string | null; name: string; onDetachedChange: (detached: boolean) => void; onCloseRequested?: () => void; onSessionReady: (id: string | undefined) => void; ref?: Ref<TerminalPanelHandle>;
+export default function TerminalPanel({ cwd, name, onDetachedChange, onCloseRequested, onSessionReady, onIconChange, ref }: {
+  cwd: string | null; name: string; onDetachedChange: (detached: boolean) => void; onCloseRequested?: () => void; onSessionReady: (id: string | undefined) => void; onIconChange: (icon: TerminalIconId) => void; ref?: Ref<TerminalPanelHandle>;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const popOut = useRef(() => {});
@@ -20,6 +21,8 @@ export default function TerminalPanel({ cwd, name, onDetachedChange, onCloseRequ
   closeRequested.current = onCloseRequested;
   const sessionReady = useRef(onSessionReady);
   sessionReady.current = onSessionReady;
+  const iconChanged = useRef(onIconChange);
+  iconChanged.current = onIconChange;
   useImperativeHandle(ref, () => ({ popOut: () => popOut.current() }), []);
 
   useEffect(() => {
@@ -61,6 +64,7 @@ export default function TerminalPanel({ cwd, name, onDetachedChange, onCloseRequ
       input: (data) => { if (!relay.detached) sendInput(data); },
       resize: (cols, rows) => { void syncSize(cols, rows); },
       canFit: () => !relay.detached && !relay.paused,
+      appChanged: (icon) => iconChanged.current(icon),
     });
     const { terminal } = view;
     const serializer = new SerializeAddon();
@@ -71,6 +75,7 @@ export default function TerminalPanel({ cwd, name, onDetachedChange, onCloseRequ
       else if (event.type === "error") view.report(event.data);
       else {
         exited = true; connected = false; terminal.options.disableStdin = true;
+        iconChanged.current("terminal");
         terminal.writeln("\r\nShell exited.");
       }
     }, send);

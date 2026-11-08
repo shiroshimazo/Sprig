@@ -363,16 +363,16 @@ mod tests {
     }
 
     #[test]
-    fn powershell_completes_history_with_right_arrow() {
+    fn powershell_completes_history_and_reports_the_running_app() {
         let folder = tempfile::tempdir().unwrap();
-        std::fs::write(folder.path().join("history.txt"), "Write-Output ('HISTORY_' + 'ACCEPTED')\n").unwrap();
+        std::fs::write(folder.path().join("history.txt"), "codex; Write-Output ('HISTORY_' + 'ACCEPTED')\n").unwrap();
         let history = folder.path().join("history.txt").display().to_string().replace('\'', "''");
         let pair = native_pty_system().openpty(size(120, 30).unwrap()).unwrap();
         let mut reader = pair.master.try_clone_reader().unwrap();
         let mut writer = pair.master.take_writer().unwrap();
         let mut command = CommandBuilder::new("powershell.exe");
         command.args(["-NoLogo", "-NoProfile", "-NoExit", "-ExecutionPolicy", "RemoteSigned", "-Command", &format!(
-            "{}\nSet-PSReadLineOption -HistorySaveStyle SaveIncrementally -HistorySavePath '{}'\nWrite-Output 'HISTORY_READY'",
+            "{}\nfunction codex {{}}\nSet-PSReadLineOption -HistorySaveStyle SaveIncrementally -HistorySavePath '{}'\nWrite-Output 'HISTORY_READY'",
             include_str!("terminal-startup.ps1"), history,
         )]);
         let mut child = pair.slave.spawn_command(command).unwrap();
@@ -392,7 +392,7 @@ mod tests {
                 }
                 let text = String::from_utf8_lossy(&output);
                 if !typed && text.contains("HISTORY_READY") {
-                    let _ = writer.write_all(b"Write-Out");
+                    let _ = writer.write_all(b"cod");
                     let _ = writer.flush();
                     typed = true;
                 }
@@ -416,6 +416,7 @@ mod tests {
         let _ = child.wait();
         let text = String::from_utf8_lossy(&output);
         assert!(text.contains("HISTORY_ACCEPTED"), "History completion failed: {text}");
+        assert!(text.contains("\x1b]777;sprig;app=codex\x07"), "Running app was not reported: {text}");
     }
 
     #[test]

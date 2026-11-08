@@ -17,11 +17,13 @@ import TerminalPanel from "./TerminalPanel";
 import type { TerminalPanelHandle } from "./TerminalPanel";
 import { SourceControl, CommitHistory, useSourceControl } from "./SourceControl";
 import WindowControls from "./WindowControls";
+import TerminalTabIcon from "./TerminalTabIcon";
+import type { TerminalIconId } from "./terminalIcons";
 import "./App.css";
 
 const MAX_TERMINALS = 4;
 
-type TerminalTab = { id: string; name: string; cwd: string | null; detached?: boolean; sessionId?: string; detachOnReady?: boolean };
+type TerminalTab = { id: string; name: string; cwd: string | null; icon?: TerminalIconId; detached?: boolean; sessionId?: string; detachOnReady?: boolean };
 
 function App() {
   const [sidebarVisible, setSidebarVisible] = useState(true);
@@ -52,7 +54,7 @@ function App() {
     const pending = pendingRef.current;
     const list = terminalsRef.current
       .filter((tab) => tab.sessionId && (tab.detached || pending.includes(tab.id)))
-      .map(({ sessionId, name, cwd }) => ({ id: sessionId!, name, cwd }));
+      .map(({ sessionId, name, cwd, icon }) => ({ id: sessionId!, name, cwd, icon }));
     const canCreate = terminalsRef.current.length < MAX_TERMINALS;
     const signature = JSON.stringify({ list, canCreate });
     if (rosterSignature.current === signature) return;
@@ -691,6 +693,7 @@ function App() {
                           }
                         }}
                       >
+                        <TerminalTabIcon value={tab.icon} />
                         {tab.name}
                       </button>
                       <button className="terminal-tab-add terminal-tab-popout" aria-label={`Pop out ${tab.name}`} title="Move terminal into a shared window" onClick={() => requestPopOut(tab.id)}>
@@ -723,7 +726,9 @@ function App() {
                   hidden={tab.detached || tab.id !== selectedTerminalId}
                   className="terminal-pane"
                 >
-                  <TerminalPanel cwd={tab.cwd} name={tab.name} ref={(view) => { if (view) terminalViews.current.set(tab.id, view); else terminalViews.current.delete(tab.id); }} onSessionReady={(sessionId) => {
+                  <TerminalPanel cwd={tab.cwd} name={tab.name} onIconChange={(icon) => {
+                    setTerminals((current) => current.map((item) => item.id === tab.id && item.icon !== icon ? { ...item, icon } : item));
+                  }} ref={(view) => { if (view) terminalViews.current.set(tab.id, view); else terminalViews.current.delete(tab.id); }} onSessionReady={(sessionId) => {
                     setTerminals((current) => current.map((item) => item.id === tab.id ? { ...item, sessionId } : item));
                   }} onCloseRequested={() => closeTerminal(tab.id)} onDetachedChange={(detached) => {
                     setTerminals((current) => current.map((item) => item.id === tab.id ? { ...item, detached } : item));

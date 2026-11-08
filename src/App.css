@@ -652,6 +652,18 @@ p {
   background: var(--control);
 }
 
+.terminal-tab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+}
+
+.terminal-tab-select, .detached-tab-select { gap: 6px; }
+.terminal-tab-icon img[src$="/opencode.svg"] { filter: invert(1); }
+
 .terminal-tab-select {
   display: inline-flex;
   align-items: center;
