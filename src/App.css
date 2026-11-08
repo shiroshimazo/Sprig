@@ -614,11 +614,15 @@ p {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  padding: 8px;
 }
 
 .terminal-content .xterm {
   height: 100%;
+  padding: 8px;
+}
+
+.terminal-content .xterm-viewport {
+  background-color: var(--background);
 }
 
 .terminal-tabs {

@@ -7,6 +7,11 @@ use tauri::{Emitter, Manager};
 pub fn run() {
     tauri::Builder::default()
         .manage(terminal::Terminals::default())
+        .on_page_load(|webview, _| {
+            if let Err(error) = webview.set_zoom(0.8) {
+                eprintln!("Cannot set app zoom: {error}");
+            }
+        })
         .on_window_event(|window, event| {
             if matches!(event, tauri::WindowEvent::Destroyed) {
                 if window.label() == "main" {
