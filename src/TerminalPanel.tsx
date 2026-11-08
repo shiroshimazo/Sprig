@@ -96,14 +96,14 @@ export default function TerminalPanel({ cwd, name, onDetachedChange, onCloseRequ
           relay.pause();
           terminal.write("", () => {
             if (disposed || !opening) return;
-            send({ type: "snapshot", text: serializer.serialize(), cols: terminal.cols, rows: terminal.rows, viewport: terminal.buffer.active.viewportY, exited });
+            send({ type: "snapshot", text: serializer.serialize(), cols: terminal.cols, rows: terminal.rows, viewport: terminal.buffer.active.viewportY, exited, shellReady: view.suggestions.shellReady });
           });
         } else if (payload.type === "ready" && relay.detached && !docking) {
           // The detached window lost its views (e.g. reload). Send a fresh
           // snapshot so scrollback is never blank.
           terminal.write("", () => {
             if (disposed || !relay.detached) return;
-            send({ type: "snapshot", text: serializer.serialize(), cols: terminal.cols, rows: terminal.rows, viewport: terminal.buffer.active.viewportY, exited });
+            send({ type: "snapshot", text: serializer.serialize(), cols: terminal.cols, rows: terminal.rows, viewport: terminal.buffer.active.viewportY, exited, shellReady: view.suggestions.shellReady });
           });
         } else if (payload.type === "attached" && opening && relay.paused) {
           clearTimeout(timeout); opening = false;

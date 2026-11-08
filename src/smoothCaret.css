@@ -1,0 +1,26 @@
+.smooth-caret-layer {
+  position: fixed;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  z-index: 2147483647;
+}
+
+.smooth-caret {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 2px;
+  border-radius: 1px;
+}
+
+input.smooth-caret-active,
+textarea.smooth-caret-active,
+.smooth-caret-active .cm-content {
+  caret-color: transparent !important;
+}
+
+.smooth-caret-active .cm-cursorLayer {
+  visibility: hidden;
+}
+

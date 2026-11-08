@@ -15,7 +15,7 @@ export type ViewMessage =
 // payloads are wrapped in an envelope with the terminal id; window-level
 // payloads travel on the "detached-window" event instead.
 export type OwnerMessage = TerminalEvent
-  | { type: "snapshot"; text: string; cols: number; rows: number; viewport: number; exited: boolean }
+  | { type: "snapshot"; text: string; cols: number; rows: number; viewport: number; exited: boolean; shellReady: boolean }
   | { type: "drain" };
 
 export type OwnerEnvelope = { id: string; message: OwnerMessage };

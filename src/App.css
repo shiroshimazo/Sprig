@@ -614,16 +614,38 @@ p {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  background: var(--terminal-background, var(--background));
 }
 
 .terminal-content .xterm {
   height: 100%;
   padding: 8px;
+  background: inherit;
 }
 
 .terminal-content .xterm-viewport {
-  background-color: var(--background);
+  background-color: var(--terminal-background, var(--background));
 }
+
+.terminal-content .xterm-scrollable-element {
+  background-color: var(--terminal-background, var(--background)) !important;
+}
+
+.terminal-suggestions {
+  position: fixed;
+  z-index: 100;
+  width: max-content;
+  max-width: min(480px, calc(100vw - 16px));
+  padding: 3px;
+  border: 1px solid #555;
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+}
+.terminal-suggestions button { display: flex; align-items: center; gap: 16px; width: 100%; padding: 5px 8px; border: 0; border-radius: 2px; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.terminal-suggestions button[aria-selected="true"] { background: #303030; outline: 1px solid #777; outline-offset: -1px; }
+.terminal-suggestions span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.terminal-suggestions small { flex-shrink: 0; color: var(--text-muted); font-size: 11px; }
 
 .terminal-tabs {
   display: flex;

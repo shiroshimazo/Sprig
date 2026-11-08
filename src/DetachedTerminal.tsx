@@ -52,6 +52,7 @@ function HostedTerminal({ id, active, onError }: {
             if (disposed) return;
             attached = true; exited = message.exited;
             terminal.options.disableStdin = exited;
+            view.suggestions.setShellReady(message.shellReady && !exited);
             terminal.scrollToLine(message.viewport);
             send({ type: "attached" });
             if (isTauri()) {

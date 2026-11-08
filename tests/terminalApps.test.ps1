@@ -35,5 +35,27 @@ try {
 } finally {
     [Console]::SetOut($originalOut)
 }
-$expected = "$([char]27)]777;sprig;app=claude-code$([char]7)$([char]27)]777;sprig;app=terminal$([char]7)"
+$expected = "$([char]27)]777;sprig;shell=ready$([char]7)$([char]27)]777;sprig;shell=busy$([char]7)$([char]27)]777;sprig;app=claude-code$([char]7)$([char]27)]777;sprig;app=terminal$([char]7)"
 if ($capture.ToString() -ne $expected) { throw 'App start and prompt reset markers are incorrect' }
+
+function SprigPopupCommandOne {}
+function SprigPopupCommandTwo {}
+$history = @([pscustomobject]@{ CommandLine = 'SprigPopupCommandTwo --previous' })
+$items = @(Get-SprigCompletions 'SprigPopupComm' 14 $history)
+if (-not ($items | Where-Object { $_.Text -eq 'SprigPopupCommandTwo' -and $_.Kind -eq 'command' })) { throw 'Command suggestions missing' }
+if (-not ($items | Where-Object { $_.Text -eq 'SprigPopupCommandTwo --previous' -and $_.Kind -eq 'history' })) { throw 'History suggestions missing' }
+if ($items.Count -gt 8) { throw 'Too many suggestions' }
+if (@(Get-SprigCompletions '' 0 @()).Count -ne 0) { throw 'Empty input should not suggest commands' }
+
+$folder = Join-Path ([IO.Path]::GetTempPath()) ('sprig-completion-' + [guid]::NewGuid().ToString('N'))
+$null = New-Item -ItemType Directory -Path $folder
+$file = Join-Path $folder 'file with spaces.txt'
+try {
+    [IO.File]::WriteAllText($file, '')
+    $line = "Get-Content '$folder\file"
+    $paths = @(Get-SprigCompletions $line $line.Length @())
+    if (-not ($paths | Where-Object { $_.Kind -eq 'path' -and $_.Text.Contains('file with spaces.txt') -and $_.Start -eq 12 })) { throw 'Quoted path suggestions missing' }
+} finally {
+    Remove-Item -LiteralPath $file -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $folder
+}

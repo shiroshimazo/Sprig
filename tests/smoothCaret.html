@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Smooth caret checks</title>
+<style>
+  body { margin: 24px; background: #090909; color: #e5e5e5; font: 16px monospace; }
+  input, textarea { display: block; width: 180px; padding: 8px; border: 1px solid; font: inherit; }
+  #editor { height: 160px; margin: 16px 0; }
+  #terminal { width: 500px; height: 150px; position: relative; }
+</style>
+<body>
+<input aria-label="File name" value="hello">
+<textarea aria-label="Commit message">first line
+second line</textarea>
+<div id="editor"></div>
+<div id="terminal"></div>
+<pre id="result">Running...</pre>
+<script type="module">
+  import React from "react";
+  import { createRoot } from "react-dom/client";
+  import CodeEditor from "../src/CodeEditor.tsx";
+  import { installInputCarets } from "../src/smoothCaret.ts";
+  import { createTerminalView } from "../src/terminalView.ts";
+  import "../src/smoothCaret.css";
+
+  const wait = (ms = 450) => new Promise((resolve) => setTimeout(resolve, ms));
+  const assert = (value, message) => { if (!value) throw new Error(message); };
+  const active = () => document.querySelector(".smooth-caret-layer:not([hidden]) .smooth-caret");
+  const checks = [];
+  const stop = installInputCarets();
+  const root = createRoot(document.querySelector("#editor"));
+  root.render(React.createElement(CodeEditor, {
+    content: "const value = 1;\nsecond line", path: "test.ts", onChange: () => {}, onPositionChange: () => {}, discarded: null,
+  }));
+  const sent = [];
+  const terminalView = createTerminalView(document.querySelector("#terminal"), {
+    input: (text) => sent.push(text), resize: () => {}, canFit: () => true,
+  });
+  const terminal = terminalView.terminal;
+  terminal.options.disableStdin = false;
+  const write = (text) => new Promise((resolve) => terminal.write(text, resolve));
+
+  window.caretChecks = (async () => {
+    await document.fonts.ready;
+    await wait();
+    const input = document.querySelector("input");
+    input.focus();
+    input.setSelectionRange(0, 0);
+    await wait();
+    assert(active(), "Input caret appears");
+    const start = active().getBoundingClientRect().left;
+    input.setSelectionRange(5, 5);
+    await wait();
+    assert(active().getBoundingClientRect().left > start + 30, "Input caret follows selection");
+    assert(getComputedStyle(input).caretColor === "rgba(0, 0, 0, 0)", "Native caret hides");
+    input.setSelectionRange(1, 4);
+    await wait();
+    assert(!active(), "Selection hides custom caret");
+    input.setSelectionRange(5, 5);
+    await wait();
+    input.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+    assert(!active() && !input.classList.contains("smooth-caret-active"), "IME restores native caret");
+    input.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true }));
+    await wait();
+    assert(active(), "Caret returns after IME");
+    input.value = "a".repeat(60);
+    input.setSelectionRange(60, 60);
+    input.scrollLeft = input.scrollWidth;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    await wait();
+    assert(active(), "Horizontally scrolled input keeps caret");
+    checks.push("input: positioning, selection, composition, horizontal scroll");
+
+    const textarea = document.querySelector("textarea:not(.xterm-helper-textarea)");
+    textarea.focus();
+    textarea.setSelectionRange(0, 0);
+    await wait();
+    const firstLine = active().getBoundingClientRect().top;
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    await wait();
+    assert(active().getBoundingClientRect().top > firstLine + 10, "Textarea follows newlines");
+    textarea.value = "wrapped words ".repeat(30);
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    textarea.scrollTop = textarea.scrollHeight;
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    await wait();
+    assert(active(), "Wrapped and scrolled textarea keeps caret");
+    checks.push("textarea: multiline, wrapping, vertical scroll");
+
+    const content = document.querySelector(".cm-content");
+    content.focus();
+    await wait();
+    assert(active() && document.querySelector(".cm-scroller.smooth-caret-active"), "Editor uses custom caret");
+    document.execCommand("insertText", false, "test");
+    await wait();
+    assert(content.textContent.includes("test"), "Editor still accepts text");
+    assert(document.querySelectorAll(".smooth-caret-layer:not([hidden])").length === 1, "Only focused caret appears");
+    checks.push("CodeMirror: focus, typing, single active caret");
+
+    await write("hello \u4e16\u754c");
+    terminal.focus();
+    await wait();
+    assert(active(), "Terminal caret appears");
+    assert(!document.querySelector(".xterm-cursor-block, .xterm-cursor-bar, .xterm-cursor-underline"), "Native terminal cursor styling hides");
+    let cursor = document.querySelector(".xterm-cursor").getBoundingClientRect();
+    assert(Math.abs(active().getBoundingClientRect().left - cursor.left) < 2, "Terminal tracks wide characters");
+    await write("\r\nsecond row");
+    await wait();
+    cursor = document.querySelector(".xterm-cursor").getBoundingClientRect();
+    assert(Math.abs(active().getBoundingClientRect().top - cursor.top) < 2, "Terminal follows rows");
+    await write("\x1b[?25l");
+    await wait();
+    assert(!active(), "Terminal honors hidden cursor");
+    await write("\x1b[?25h");
+    await wait();
+    assert(active(), "Terminal restores visible cursor");
+    await write("\r\x1b[31mred\x1b[0m\x1b[3G");
+    await wait();
+    assert(getComputedStyle(document.querySelector(".xterm-cursor")).color !== getComputedStyle(document.querySelector(".xterm-rows")).color, "Cursor preserves ANSI text color");
+    terminal.select(0, 0, 3);
+    await wait();
+    assert(!active(), "Terminal selection hides custom caret");
+    terminal.clearSelection();
+    terminal.input("echo test", true);
+    assert(sent.join("") === "echo test", "Terminal input stays intact");
+    checks.push("terminal: wide characters, rows, app visibility, selection, input");
+
+    window.checkMotionFallback = async () => {
+      input.focus();
+      input.value = "hello";
+      input.setSelectionRange(2, 2);
+      await wait();
+      assert(!active() && !input.classList.contains("smooth-caret-active"), "Motion preference restores native input caret");
+      content.focus();
+      await wait();
+      assert(!active() && !document.querySelector(".cm-scroller.smooth-caret-active"), "Motion preference restores native editor caret");
+      terminal.focus();
+      await wait();
+      assert(!active() && !document.querySelector("#terminal.smooth-caret-active"), "Motion preference restores native terminal caret");
+      return "Native caret fallback passed for input, editor, terminal";
+    };
+    window.cleanupCaretChecks = () => {
+      stop();
+      root.unmount();
+      terminalView.dispose();
+      assert(document.querySelectorAll(".smooth-caret-layer").length === 0, "Dispose removes overlays");
+      return "Cleanup passed";
+    };
+    document.querySelector("#result").textContent = checks.join("\n");
+    return checks;
+  })().catch((error) => {
+    document.querySelector("#result").textContent = error.stack;
+    throw error;
+  });
+</script>
+</body>
+</html>

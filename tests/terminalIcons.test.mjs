@@ -13,7 +13,7 @@ test("terminal app markers accept supported choices and reject arbitrary values"
   }
 });
 
-test("PowerShell detects executed commands without matching ordinary output or arguments", { skip: process.platform !== "win32" }, () => {
+test("PowerShell detects apps and completes commands, history, and quoted paths", { skip: process.platform !== "win32" }, () => {
   const result = spawnSync("powershell.exe", [
     "-NoLogo", "-NoProfile", "-ExecutionPolicy", "RemoteSigned", "-File",
     fileURLToPath(new URL("./terminalApps.test.ps1", import.meta.url)),

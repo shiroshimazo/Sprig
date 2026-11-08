@@ -420,6 +420,77 @@ mod tests {
     }
 
     #[test]
+    fn powershell_popup_completes_without_running_until_enter() {
+        let folder = tempfile::tempdir().unwrap();
+        let history = folder.path().join("history.txt");
+        std::fs::write(&history, "SprigPopupOne -Previous\n").unwrap();
+        let history = history.display().to_string().replace('\'', "''");
+        let pair = native_pty_system().openpty(size(100, 30).unwrap()).unwrap();
+        let mut reader = pair.master.try_clone_reader().unwrap();
+        let mut writer = pair.master.take_writer().unwrap();
+        let mut command = CommandBuilder::new("powershell.exe");
+        command.args(["-NoLogo", "-NoProfile", "-NoExit", "-ExecutionPolicy", "RemoteSigned", "-Command", &format!(
+            "{}\nSet-PSReadLineOption -HistorySaveStyle SaveIncrementally -HistorySavePath '{}'\nfunction SprigPopupOne {{}}\nfunction SprigPopupTwo {{ Write-Output ('POPUP_' + 'SUCCESS') }}\nWrite-Output 'POPUP_READY'",
+            include_str!("terminal-startup.ps1"), history,
+        )]);
+        let mut child = pair.slave.spawn_command(command).unwrap();
+        drop(pair.slave);
+        let (send, receive) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let mut output = Vec::new();
+            let mut chunk = [0u8; 8192];
+            let (mut queried, mut accepted, mut submitted) = (false, false, false);
+            while let Ok(count) = reader.read(&mut chunk) {
+                if count == 0 { break; }
+                output.extend_from_slice(&chunk[..count]);
+                let text = String::from_utf8_lossy(&output);
+                if chunk[..count].windows(4).any(|bytes| bytes == b"\x1b[6n") {
+                    let _ = writer.write_all(b"\x1b[1;1R");
+                    let _ = writer.flush();
+                }
+                if !queried && text.contains("POPUP_READY") {
+                    let _ = writer.write_all(b"SprigPopup\x1b[24~");
+                    let _ = writer.flush();
+                    queried = true;
+                }
+                if let Some((_, tail)) = text.rsplit_once("\x1b]777;sprig;suggestions=") {
+                    if let Some((json, _)) = tail.split_once('\x07') {
+                        if let Ok(payload) = serde_json::from_str::<serde_json::Value>(json) {
+                            if let Some(items) = payload["items"].as_array() {
+                                if !accepted {
+                                    if let Some(index) = items.iter().position(|item| item["label"] == "SprigPopupTwo") {
+                                        let key = if index == 0 { "\x1b[23~".into() } else { format!("\x1b[23;{}~", index + 1) };
+                                        let _ = writer.write_all(format!("{key}\x1b[24~").as_bytes());
+                                        let _ = writer.flush();
+                                        accepted = true;
+                                    }
+                                } else if !submitted && items.len() == 1 && items[0]["label"] == "SprigPopupTwo" {
+                                    assert!(!text.contains("POPUP_SUCCESS"), "Completion ran before Enter");
+                                    let _ = writer.write_all(b"\r");
+                                    let _ = writer.flush();
+                                    submitted = true;
+                                }
+                            }
+                        }
+                    }
+                }
+                let done = submitted && text.contains("POPUP_SUCCESS");
+                if send.send(output.clone()).is_err() || done { break; }
+            }
+        });
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+        let mut output = Vec::new();
+        while let Ok(chunk) = receive.recv_timeout(deadline.saturating_duration_since(std::time::Instant::now())) {
+            output = chunk;
+            if String::from_utf8_lossy(&output).contains("POPUP_SUCCESS") { break; }
+        }
+        let _ = child.kill();
+        let _ = child.wait();
+        let text = String::from_utf8_lossy(&output);
+        assert!(text.contains("POPUP_SUCCESS"), "Popup completion failed: {text}");
+    }
+
+    #[test]
     fn powershell_accepts_input_and_returns_output_through_pty() {
         let folder = tempfile::tempdir().unwrap();
         let working = folder.path().join("project with spaces");

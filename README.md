@@ -2,6 +2,12 @@
 
 This template should help get you started developing with Tauri, React and Typescript in Vite.
 
+## Smooth carets
+
+Text fields, the code editor, and embedded and detached terminals use spring carets adapted from [Skiper UI's Skiper106](https://skiper-ui.com/v1/skiper106) by gxuri. The implementation reuses Motion and preserves existing input styling. Reduced motion, forced colors, and IME composition use native carets.
+
+Terminals use xterm's DOM renderer so the animated caret can follow the actual cursor, including terminal apps that hide it. To run the browser checks, start `npm run dev` and open `/tests/smoothCaret.html` with the page focused.
+
 ## Recommended IDE Setup
 
 - [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
@@ -9,6 +15,10 @@ This template should help get you started developing with Tauri, React and Types
 ## Terminal history autocomplete (Windows)
 
 The embedded and detached terminals use PSReadLine history to suggest commands as you type. Press Right Arrow to accept a suggestion, then Enter to run it. Existing Tab completion stays available.
+
+Typing at the PowerShell prompt also opens a popup with matching commands, recent history, arguments, and file paths. Use Up/Down to select, Tab or a click to insert, and Escape to dismiss. Inserting a suggestion never executes it; Enter runs the command. The popup follows detached terminals and stays off while commands or AI harnesses run.
+
+F11/F12 combinations are reserved inside this PowerShell session to request and insert completions. Suggestions resume at the next shell prompt after submitting a command or cancelling input.
 
 This requires PSReadLine 2.1 or newer. Install it in PowerShell, then open a new terminal:
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { EditorView } from "codemirror";
 import { EditorState } from "@codemirror/state";
-import { keymap, lineNumbers } from "@codemirror/view";
+import { keymap, lineNumbers, ViewPlugin } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { search, searchKeymap } from "@codemirror/search";
 import { bracketMatching, HighlightStyle, indentOnInput, indentUnit, syntaxHighlighting } from "@codemirror/language";
@@ -12,6 +12,16 @@ import { sql } from "@codemirror/lang-sql";
 import { css } from "@codemirror/lang-css";
 import { preserveLineEndings } from "./lineEndings";
 import { smoothScroll } from "./smoothScroll";
+import { createSmoothCaret } from "./smoothCaret";
+
+const smoothCaret = ViewPlugin.define((view) => {
+  const caret = createSmoothCaret(view.scrollDOM, () => {
+    if (!view.state.selection.main.empty || view.state.selection.ranges.length > 1 || view.compositionStarted) return null;
+    const rect = view.coordsAtPos(view.state.selection.main.head);
+    return rect && { left: rect.left, top: rect.top, height: rect.bottom - rect.top, color: "#f8f8f0" };
+  });
+  return { update: caret.update, destroy: caret.dispose };
+});
 
 // One Dark Theme by Joshua Azemoh — applied to the code editor only.
 // Source: https://github.com/azemoh/vscode-onedark (themes/OneDarkTheme-color-theme.json)
@@ -76,6 +86,7 @@ export default function CodeEditor({ content, path, onChange, onPositionChange, 
         doc: content,
         extensions: [
           lineNumbers(),
+          smoothCaret,
           languageFor(path),
           syntaxHighlighting(highlighting),
           indentUnit.of("  "),
