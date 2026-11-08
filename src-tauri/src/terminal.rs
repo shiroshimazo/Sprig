@@ -104,12 +104,15 @@ pub async fn terminal_start(
             }
             command.cwd(un_verbatim(&resolved));
         }
+        // Restricted execution policy blocks PSReadLine modules installed for the user.
         #[cfg(windows)]
         command.args([
             "-NoLogo",
             "-NoExit",
+            "-ExecutionPolicy",
+            "RemoteSigned",
             "-Command",
-            "function prompt { $p = (Get-Location).Path; $l = Split-Path -Leaf $p; if (-not $l) { $l = $p }; \"PS $l> \" }",
+            include_str!("terminal-startup.ps1"),
         ]);
         #[cfg(not(windows))]
         command.env("PS1", "\\W \\$ ");
@@ -357,6 +360,62 @@ mod tests {
         assert_eq!(sanitize_external_title("a\nb\tc"), "abc");
         assert_eq!(sanitize_external_title("   "), "Terminal");
         assert_eq!(sanitize_external_title("a".repeat(100).as_str()), "a".repeat(64));
+    }
+
+    #[test]
+    fn powershell_completes_history_with_right_arrow() {
+        let folder = tempfile::tempdir().unwrap();
+        std::fs::write(folder.path().join("history.txt"), "Write-Output ('HISTORY_' + 'ACCEPTED')\n").unwrap();
+        let history = folder.path().join("history.txt").display().to_string().replace('\'', "''");
+        let pair = native_pty_system().openpty(size(120, 30).unwrap()).unwrap();
+        let mut reader = pair.master.try_clone_reader().unwrap();
+        let mut writer = pair.master.take_writer().unwrap();
+        let mut command = CommandBuilder::new("powershell.exe");
+        command.args(["-NoLogo", "-NoProfile", "-NoExit", "-ExecutionPolicy", "RemoteSigned", "-Command", &format!(
+            "{}\nSet-PSReadLineOption -HistorySaveStyle SaveIncrementally -HistorySavePath '{}'\nWrite-Output 'HISTORY_READY'",
+            include_str!("terminal-startup.ps1"), history,
+        )]);
+        let mut child = pair.slave.spawn_command(command).unwrap();
+        drop(pair.slave);
+        let (send, receive) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let mut output = Vec::new();
+            let mut chunk = [0u8; 8192];
+            let mut typed = false;
+            let mut accepted = false;
+            while let Ok(count) = reader.read(&mut chunk) {
+                if count == 0 { break; }
+                output.extend_from_slice(&chunk[..count]);
+                if chunk[..count].windows(4).any(|bytes| bytes == b"\x1b[6n") {
+                    let _ = writer.write_all(b"\x1b[1;1R");
+                    let _ = writer.flush();
+                }
+                let text = String::from_utf8_lossy(&output);
+                if !typed && text.contains("HISTORY_READY") {
+                    let _ = writer.write_all(b"Write-Out");
+                    let _ = writer.flush();
+                    typed = true;
+                }
+                if !accepted && typed && text.contains("'HISTORY_' + 'ACCEPTED'") {
+                    let _ = writer.write_all(b"\x1b[C\r");
+                    let _ = writer.flush();
+                    accepted = true;
+                }
+                let done = text.contains("HISTORY_ACCEPTED") || text.contains("History autocomplete unavailable:");
+                if send.send(output.clone()).is_err() || done { break; }
+            }
+        });
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+        let mut output = Vec::new();
+        while let Ok(chunk) = receive.recv_timeout(deadline.saturating_duration_since(std::time::Instant::now())) {
+            output = chunk;
+            let text = String::from_utf8_lossy(&output);
+            if text.contains("HISTORY_ACCEPTED") || text.contains("History autocomplete unavailable:") { break; }
+        }
+        let _ = child.kill();
+        let _ = child.wait();
+        let text = String::from_utf8_lossy(&output);
+        assert!(text.contains("HISTORY_ACCEPTED"), "History completion failed: {text}");
     }
 
     #[test]
