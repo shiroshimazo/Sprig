@@ -8,7 +8,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { animate } from "animejs";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowUpRightIcon, CommandLineIcon, File01Icon, FolderOpenIcon, GitBranchIcon, Menu01Icon, MultiplicationSignIcon, PlusSignIcon, SidebarLeftIcon, TerminalIcon } from "@hugeicons/core-free-icons";
+import { ArrowUpRightIcon, CommandLineIcon, File01Icon, Folder01Icon, FolderOpenIcon, GitBranchIcon, Menu01Icon, MultiplicationSignIcon, PlusSignIcon, SaveIcon, SidebarLeftIcon, TerminalIcon } from "@hugeicons/core-free-icons";
 import { beyondDragThreshold, isOutsideWindow, type WindowBounds } from "./terminalDrag";
 import ResizeHandle from "./ResizeHandle";
 import FolderTree from "./FolderTree";
@@ -485,8 +485,12 @@ function App() {
                 <HugeiconsIcon icon={PlusSignIcon} size={13} aria-hidden="true" focusable="false" />
                 New File
               </button>
-              <button role="menuitem" disabled={dialogPending || !folderPath} onClick={() => { setFileMenuOpen(false); startCreation("folder"); }}>New Folder</button>
+              <button role="menuitem" disabled={dialogPending || !folderPath} onClick={() => { setFileMenuOpen(false); startCreation("folder"); }}>
+                <HugeiconsIcon icon={Folder01Icon} size={13} aria-hidden="true" focusable="false" />
+                New Folder
+              </button>
               <button role="menuitem" disabled={!filePath || savePending} onClick={() => { setFileMenuOpen(false); void saveFile(); }}>
+                <HugeiconsIcon icon={SaveIcon} size={13} aria-hidden="true" focusable="false" />
                 {savePending ? "Saving..." : "Save"}
               </button>
               <button role="menuitem" disabled={dialogPending} onClick={() => { setFileMenuOpen(false); void selectPath(false); }}>
