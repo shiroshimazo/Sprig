@@ -8,7 +8,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(terminal::Terminals::default())
         .on_page_load(|webview, _| {
-            if let Err(error) = webview.set_zoom(0.8) {
+            if let Err(error) = webview.set_zoom(1.1) {
                 eprintln!("Cannot set app zoom: {error}");
             }
         })

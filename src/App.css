@@ -131,7 +131,7 @@ p {
   box-shadow: 0 8px 24px #000c;
 }
 
-.file-menu button {
+.file-actions .file-menu button {
   justify-content: flex-start;
   min-width: 0;
   padding: 8px 10px;
