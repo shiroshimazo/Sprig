@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { EditorView } from "codemirror";
 import { EditorState } from "@codemirror/state";
-import { keymap, lineNumbers, ViewPlugin } from "@codemirror/view";
+import { highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers, ViewPlugin } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { search, searchKeymap } from "@codemirror/search";
 import { bracketMatching, HighlightStyle, indentOnInput, indentUnit, syntaxHighlighting } from "@codemirror/language";
@@ -86,6 +86,8 @@ export default function CodeEditor({ content, path, onChange, onPositionChange, 
         doc: content,
         extensions: [
           lineNumbers(),
+          highlightActiveLineGutter(),
+          highlightActiveLine(),
           smoothCaret,
           languageFor(path),
           syntaxHighlighting(highlighting),
