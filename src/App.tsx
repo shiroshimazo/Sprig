@@ -21,8 +21,6 @@ import TerminalTabIcon from "./TerminalTabIcon";
 import type { TerminalIconId } from "./terminalIcons";
 import "./App.css";
 
-const MAX_TERMINALS = 4;
-
 type TerminalTab = { id: string; name: string; cwd: string | null; icon?: TerminalIconId; detached?: boolean; sessionId?: string; detachOnReady?: boolean };
 
 function App() {
@@ -58,11 +56,10 @@ function App() {
     const list = terminalsRef.current
       .filter((tab) => tab.sessionId && (tab.detached || pending.includes(tab.id)))
       .map(({ sessionId, name, cwd, icon }) => ({ id: sessionId!, name, cwd, icon }));
-    const canCreate = terminalsRef.current.length < MAX_TERMINALS;
-    const signature = JSON.stringify({ list, canCreate });
+    const signature = JSON.stringify(list);
     if (rosterSignature.current === signature) return;
     rosterSignature.current = signature;
-    void emitTo(DETACHED_LABEL, "detached-window", { type: "roster", terminals: list, canCreate } satisfies DetachedWindowMessage).catch(() => {});
+    void emitTo(DETACHED_LABEL, "detached-window", { type: "roster", terminals: list } satisfies DetachedWindowMessage).catch(() => {});
   }, []);
   useEffect(() => { emitRoster(); }, [terminals, pendingDetach, emitRoster]);
   // Drop pending entries once they detach (handoff done) or after a short
@@ -95,9 +92,9 @@ function App() {
   createDetached.current = (sourceId) => {
     const current = terminalsRef.current;
     const source = current.find((tab) => tab.sessionId === sourceId && tab.detached);
-    if (!source || current.length >= MAX_TERMINALS) return;
+    if (!source) return;
     const tab = { id: crypto.randomUUID(), name: `Terminal ${nextTerminalNumber.current++}`, cwd: source.cwd, detachOnReady: true };
-    setTerminals((latest) => latest.length < MAX_TERMINALS && latest.some((item) => item.sessionId === sourceId && item.detached) ? [...latest, tab] : latest);
+    setTerminals((latest) => latest.some((item) => item.sessionId === sourceId && item.detached) ? [...latest, tab] : latest);
   };
   useEffect(() => {
     const ready = terminals.filter((tab) => tab.detachOnReady && tab.sessionId);
@@ -112,11 +109,10 @@ function App() {
   const dockedTerminals = terminals.filter((tab) => !tab.detached);
   const selectedTerminalId = dockedTerminals.find((tab) => tab.id === activeTerminalId)?.id ?? dockedTerminals[0]?.id;
   const addTerminal = useCallback(() => {
-    if (terminals.length >= MAX_TERMINALS) return;
     const tab = { id: crypto.randomUUID(), name: `Terminal ${nextTerminalNumber.current++}`, cwd: folderPath };
     setTerminals((current) => [...current, tab]);
     setActiveTerminalId(tab.id);
-  }, [terminals.length, folderPath]);
+  }, [folderPath]);
   const closeTerminal = useCallback((id: string) => {
     const index = terminals.findIndex((tab) => tab.id === id);
     const next = terminals.filter((tab) => tab.id !== id);
@@ -742,8 +738,7 @@ function App() {
                 <button
                   className="terminal-tab-add"
                   aria-label="New terminal"
-                  title={terminals.length >= MAX_TERMINALS ? "Terminal limit reached (4)" : "New terminal"}
-                  disabled={terminals.length >= MAX_TERMINALS}
+                  title="New terminal"
                   onClick={addTerminal}
                 >
                   <HugeiconsIcon icon={PlusSignIcon} size={13} aria-hidden="true" focusable="false" />
@@ -775,7 +770,7 @@ function App() {
               {dockedTerminals.length === 0 && (
                 <div className="terminal-empty">
                   <p>{terminals.length ? "Terminals are open in separate app windows. Close those windows to dock them here." : "No terminal open."}</p>
-                  <button className="terminal-empty-action" disabled={terminals.length >= MAX_TERMINALS} onClick={addTerminal}>Open Terminal</button>
+                  <button className="terminal-empty-action" onClick={addTerminal}>Open Terminal</button>
                 </div>
               )}
             </div>

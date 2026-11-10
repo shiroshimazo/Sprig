@@ -78,8 +78,8 @@ pub async fn terminal_start(
         if state.1.load(Ordering::SeqCst) {
             return Err("The application is closing.".into());
         }
-        if sessions.contains_key(&id) || sessions.len() >= 4 {
-            return Err("Terminal session limit reached.".into());
+        if sessions.contains_key(&id) {
+            return Err("This terminal is already running.".into());
         }
         let pair = native_pty_system()
             .openpty(size(cols, rows)?)

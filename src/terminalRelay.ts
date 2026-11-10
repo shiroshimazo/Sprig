@@ -26,7 +26,7 @@ export type DetachedTerminalInfo = { id: string; name: string; cwd: string | nul
 export type DetachedWindowMessage =
   | { type: "ready" }
   | { type: "create"; sourceId: string }
-  | { type: "roster"; terminals: DetachedTerminalInfo[]; canCreate: boolean };
+  | { type: "roster"; terminals: DetachedTerminalInfo[] };
 
 // Pause delivery during handoff so the snapshot and live output never overlap.
 export class TerminalRelay {

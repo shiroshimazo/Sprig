@@ -119,7 +119,6 @@ export default function DetachedTerminal() {
   const [tabs, setTabs] = useState<DetachedTerminalInfo[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [canCreate, setCanCreate] = useState(false);
   const everNonEmpty = useRef(false);
   const tabsRef = useRef<DetachedTerminalInfo[]>([]);
   tabsRef.current = tabs;
@@ -140,7 +139,6 @@ export default function DetachedTerminal() {
         if (disposed || payload.type !== "roster") return;
         const list = payload.terminals;
         const added = list.find((tab) => !tabsRef.current.some((previous) => previous.id === tab.id));
-        setCanCreate(payload.canCreate);
         if (list.length > 0) everNonEmpty.current = true;
         tabsRef.current = list;
         setTabs(list);
@@ -224,7 +222,7 @@ export default function DetachedTerminal() {
               </div>
             );
           })}
-          <button className="terminal-tab-add detached-tab-action" aria-label="New terminal" title={canCreate ? "New terminal" : "Terminal limit reached (4 across both windows)"} disabled={!canCreate || !activeId} onClick={() => {
+          <button className="terminal-tab-add detached-tab-action" aria-label="New terminal" title="New terminal" disabled={!activeId} onClick={() => {
             if (!activeId) return;
             void emitTo(MAIN_LABEL, "detached-window", { type: "create", sourceId: activeId } satisfies DetachedWindowMessage).catch((error: unknown) => setError(String(error)));
           }}>
