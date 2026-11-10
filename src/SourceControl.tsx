@@ -7,7 +7,7 @@ type Commit = { sha: string; subject: string; author: string; date: string };
 type Snapshot = { branch: string; changes: Change[]; commits: Commit[] };
 type Action = "stage" | "unstage" | "commit" | "push";
 
-export function useSourceControl(path: string | null, active: boolean) {
+export function useSourceControl(path: string | null, active: boolean, onChanged?: () => void) {
   const [data, setData] = useState<Snapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -64,6 +64,9 @@ export function useSourceControl(path: string | null, active: boolean) {
         const result = await invoke<Snapshot>("git_snapshot", { path });
         if (request === generation.current) setData(result);
       }
+      // The files changed their commit state, so the file tree has to be
+      // marked again.
+      onChanged?.();
     } catch (error) {
       if (request === generation.current) setError(String(error));
     } finally {

@@ -16,6 +16,7 @@ import CodeEditor from "./CodeEditor";
 import TerminalPanel from "./TerminalPanel";
 import type { TerminalPanelHandle } from "./TerminalPanel";
 import { SourceControl, CommitHistory, useSourceControl } from "./SourceControl";
+import { useGitStatus } from "./gitStatus";
 import WindowControls from "./WindowControls";
 import TerminalTabIcon from "./TerminalTabIcon";
 import type { TerminalIconId } from "./terminalIcons";
@@ -37,7 +38,12 @@ function App() {
   const [workspaceReady, setWorkspaceReady] = useState(false);
   const [creation, setCreation] = useState<{ kind: "file" | "folder" } | null>(null);
   const [sidebarMode, setSidebarMode] = useState<"files" | "source">("files");
-  const sourceControl = useSourceControl(folderPath, sidebarMode === "source");
+  // Bumped whenever something changes on disk, so the file tree can mark the
+  // files that are not committed yet again.
+  const [gitRevision, setGitRevision] = useState(0);
+  const bumpGitStatus = useCallback(() => setGitRevision((revision) => revision + 1), []);
+  const sourceControl = useSourceControl(folderPath, sidebarMode === "source", bumpGitStatus);
+  const changedPaths = useGitStatus(folderPath, gitRevision);
   const nextTerminalNumber = useRef(2);
   const [terminals, setTerminals] = useState<TerminalTab[]>(() => [{ id: crypto.randomUUID(), name: "Terminal 1", cwd: null }]);
   const [activeTerminalId, setActiveTerminalId] = useState<string | null>(() => terminals[0].id);
@@ -261,6 +267,8 @@ function App() {
       await invoke("save_file", { path, content, expectedContent });
       document.saved = content;
       if (activePath.current === path) setFileContent(content);
+      // The file changed on disk, so it is not committed yet.
+      bumpGitStatus();
       return document.current === content;
     } catch (error) {
       setSaveError(`Cannot save ${path}: ${error instanceof Error ? error.message : String(error)}`);
@@ -269,7 +277,7 @@ function App() {
       saving.current = false;
       setSavePending(false);
     }
-  }, []);
+  }, [bumpGitStatus]);
 
   useEffect(() => {
     const dialog = prompt.current;
@@ -570,7 +578,7 @@ function App() {
             </div>}
           </div>
           <div className="sidebar-content">
-            {sidebarMode === "source" ? <SourceControl control={sourceControl} path={folderPath} /> : folderPath ? <FolderTree key={folderPath} path={folderPath} name={folderName ?? folderPath} activePath={filePath} onOpenFile={openFile} creation={creation} onCreationDone={() => setCreation(null)} /> : <p className="sidebar-empty">No folder open.</p>}
+            {sidebarMode === "source" ? <SourceControl control={sourceControl} path={folderPath} /> : folderPath ? <FolderTree key={folderPath} path={folderPath} name={folderName ?? folderPath} activePath={filePath} onOpenFile={openFile} creation={creation} onCreationDone={() => { setCreation(null); bumpGitStatus(); }} changedPaths={changedPaths} /> : <p className="sidebar-empty">No folder open.</p>}
           </div>
           <div className="sidebar-switch" aria-label="Sidebar views">
             <button

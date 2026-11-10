@@ -54,6 +54,44 @@ pub struct Commit { sha: String, subject: String, author: String, date: String }
 #[derive(Serialize)]
 pub struct Snapshot { branch: String, changes: Vec<Change>, commits: Vec<Commit> }
 
+/// A file that has changes which are not committed yet.
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct StatusEntry { path: String, index: char, worktree: char }
+
+/// Turns a repository relative path into an absolute path that uses the
+/// platform separator, so it can be compared with the paths the file tree
+/// lists.
+fn absolute_path(root: &Path, relative: &str) -> PathBuf {
+    let mut path = root.to_path_buf();
+    for component in Path::new(relative).components() {
+        path.push(component.as_os_str());
+    }
+    path
+}
+
+/// Lists the files with changes that are not committed yet.
+///
+/// Untracked files are reported one by one so the file tree can mark each of
+/// them, including the ones inside a new folder.
+#[tauri::command]
+pub async fn git_status(app: tauri::AppHandle, path: PathBuf) -> Result<Vec<StatusEntry>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = repository(&app, &path)?;
+        let rows = changes(&git(&root, &["status", "--porcelain=v1", "-z", "--untracked-files=all"])?)?;
+        Ok(rows
+            .into_iter()
+            .map(|row| StatusEntry {
+                path: absolute_path(&root, &row.path).to_string_lossy().into_owned(),
+                index: row.index,
+                worktree: row.worktree,
+            })
+            .collect())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 fn snapshot(root: &Path) -> Result<Snapshot, String> {
     let changes = changes(&git(root, &["status", "--porcelain=v1", "-z", "--untracked-files=normal"])?)?;
     let branch = git(root, &["symbolic-ref", "--quiet", "--short", "HEAD"])
@@ -129,5 +167,13 @@ mod tests {
         assert_eq!(state.branch, "main");
         assert_eq!(state.changes.len(), 1);
         assert!(state.commits.is_empty());
+    }
+    #[test]
+    fn maps_repository_paths_to_absolute_paths_with_native_separators() {
+        let root = if cfg!(windows) { PathBuf::from("C:\\repo") } else { PathBuf::from("/repo") };
+        assert_eq!(absolute_path(&root, "src/main.rs"), root.join("src").join("main.rs"));
+        assert_eq!(absolute_path(&root, "main.rs"), root.join("main.rs"));
+        #[cfg(windows)]
+        assert!(!absolute_path(&root, "src/main.rs").to_string_lossy().contains('/'));
     }
 }

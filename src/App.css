@@ -5,6 +5,7 @@
   --border: #262626;
   --text: #e5e5e5;
   --text-muted: #a3a3a3;
+  --changed: #4ade80;
   font-family: "Cascadia Mono", Consolas, monospace;
   font-size: 13px;
   line-height: 1.5;
@@ -495,6 +496,23 @@ p {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/* Files with changes that are not committed yet. The dot keeps the state
+   readable without relying on the color alone. */
+.file-tree-row--changed .file-tree-label {
+  color: var(--changed);
+}
+
+.file-tree-row--changed .file-tree-label::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: middle;
 }
 
 .file-message {

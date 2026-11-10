@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { FileTree, FileTreeFile, FileTreeFolder } from "./components/motion/file-tree";
 
@@ -22,13 +22,14 @@ type FolderTreeProps = {
   onOpenFile: (path: string) => void;
   creation: { kind: "file" | "folder" } | null;
   onCreationDone: () => void;
+  changedPaths?: string[];
 };
 
 const RETRY_SUFFIX = "::retry";
 const LOADING_SUFFIX = "::loading";
 const EMPTY_SUFFIX = "::empty";
 
-export default function FolderTree({ path, name = path, activePath, onOpenFile, creation, onCreationDone }: FolderTreeProps) {
+export default function FolderTree({ path, name = path, activePath, onOpenFile, creation, onCreationDone, changedPaths = [] }: FolderTreeProps) {
   const cache = useRef(new Map<string, CacheEntry>());
   const pending = useRef(new Set<string>());
   const reload = useRef(new Set<string>());
@@ -43,6 +44,18 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
   const [, setVersion] = useState(0);
   const bump = useCallback(() => setVersion((version) => version + 1), []);
+
+  // A file is marked when it has changes that are not committed yet. A folder
+  // is marked when it holds a file with such changes.
+  const changed = useMemo(() => new Set(changedPaths), [changedPaths]);
+  const isChanged = useCallback((target: string) => {
+    if (!changed.size) return false;
+    if (changed.has(target)) return true;
+    for (const entry of changed) {
+      if (entry.startsWith(`${target}\\`) || entry.startsWith(`${target}/`)) return true;
+    }
+    return false;
+  }, [changed]);
 
   const load = useCallback(async (folder: string): Promise<void> => {
     if (pending.current.has(folder)) return;
@@ -128,17 +141,19 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
     if (entry.isDirectory && !entry.isSymlink) {
       return renderFolder(entry.path, entry.name);
     }
+    const changedEntry = isChanged(entry.path);
     return (
       <FileTreeFile
         key={entry.path}
         value={entry.path}
         name={entry.name + (entry.isSymlink ? " (link)" : "")}
-        title={entry.path}
+        title={changedEntry ? `${entry.path} — not committed yet` : entry.path}
+        className={changedEntry ? "file-tree-row--changed" : undefined}
       />
     );
   };
 
-  const renderFolder = (folderPath: string, folderName: string): ReactNode => {
+  const renderFolder = (folderPath: string, folderName: string, isRoot = false): ReactNode => {
     const cached = cache.current.get(folderPath);
     let children: ReactNode;
     if (!cached || cached.loading) {
@@ -160,8 +175,9 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
     } else {
       children = cached.entries!.map(renderEntry);
     }
+    const changedFolder = !isRoot && isChanged(folderPath);
     return (
-      <FileTreeFolder key={folderPath} value={folderPath} name={folderName} title={folderPath}>
+      <FileTreeFolder key={folderPath} value={folderPath} name={folderName} title={changedFolder ? `${folderPath} — not committed yet` : folderPath} className={changedFolder ? "file-tree-row--changed" : undefined}>
         {draft?.parent === folderPath && <FileTreeFile value={`${folderPath}::create`} name={`New ${draft.kind}`} content={
           <form className="inline-create" onSubmit={(event) => { event.preventDefault(); void submitCreation(); }} onKeyDown={(event) => {
             event.stopPropagation();
@@ -185,7 +201,7 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
       onExpandedChange={handleExpand}
       indent={18}
     >
-      {renderFolder(path, name)}
+      {renderFolder(path, name, true)}
     </FileTree>
   );
 }

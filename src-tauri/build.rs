@@ -4,6 +4,7 @@ fn main() {
         tauri_build::AppManifest::new().commands(&[
             "git_snapshot",
             "git_action",
+            "git_status",
             "read_file",
             "create_file",
             "create_folder",

@@ -18,6 +18,7 @@
     "allow-create-folder",
     "allow-git-snapshot",
     "allow-git-action",
+    "allow-git-status",
     "allow-read-file",
     "allow-save-file",
     "allow-terminal-start",

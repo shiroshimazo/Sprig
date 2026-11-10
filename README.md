@@ -34,3 +34,7 @@ Terminal tabs automatically show brand icons for `codex`, `claude`, `antigravity
 
 The folder you open is saved the moment you pick it, and it is reopened the next time the app starts, so closing the app or shutting down the PC does not lose it. The folder is kept in `workspace.json` inside the app config folder, and access to it is restored along with it, so the file tree and the terminal work right away. If the folder was moved or deleted while the app was closed, the app starts without a folder instead of pointing at a missing path.
 
+## Marking uncommitted changes
+
+Files and folders with changes that are not committed yet are shown in green in the file tree, with a dot in front of the name. A file counts as changed when Git reports it as added, modified, renamed, deleted, or untracked; a folder is marked when it holds such a file. The marks are refreshed when the folder changes, when a file is saved or created, after staging or committing, and when the window regains focus, so changes made outside the app show up too. The status comes from the same repository the Source Control panel uses, so the folder has to be the repository root.
+

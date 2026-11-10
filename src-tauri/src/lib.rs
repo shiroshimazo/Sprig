@@ -31,6 +31,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             git::git_snapshot,
             git::git_action,
+            git::git_status,
             files::read_file,
             files::create_file,
             files::create_folder,
