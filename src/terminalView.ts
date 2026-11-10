@@ -83,6 +83,37 @@ export function createTerminalView(element: HTMLElement, handlers: {
     return true;
   });
   const dimensions = terminal.onResize(({ cols, rows }) => handlers.resize(cols, rows));
+  // Clicking on the line that is being typed moves the caret to that spot, so
+  // a command can be edited in the middle without reaching for the arrow keys.
+  // The shell is asked to move with cursor keys, so only a line that the shell
+  // is reading can be edited this way.
+  let pointerStart: { x: number; y: number; detail: number; selected: string } | null = null;
+  const rememberPointer = (event: MouseEvent) => {
+    pointerStart = { x: event.clientX, y: event.clientY, detail: event.detail, selected: terminal.getSelection() };
+  };
+  const moveCaret = (event: MouseEvent) => {
+    const start = pointerStart;
+    pointerStart = null;
+    if (!start || start.detail > 1) return;
+    // A drag selects text, a click on a selection only clears it.
+    if (Math.abs(event.clientX - start.x) > 3 || Math.abs(event.clientY - start.y) > 3) return;
+    if (start.selected) return;
+    if (terminal.options.disableStdin || !suggestions.shellReady) return;
+    const buffer = terminal.buffer.active;
+    if (buffer.type !== "normal") return;
+    const grid = element.querySelector(".xterm-rows")?.getBoundingClientRect();
+    if (!grid || !grid.width || !grid.height) return;
+    const column = Math.round((event.clientX - grid.left) / (grid.width / terminal.cols));
+    const row = Math.floor((event.clientY - grid.top) / (grid.height / terminal.rows));
+    if (column < 0 || column > terminal.cols - 1 || row < 0 || row >= terminal.rows) return;
+    // Only the line the shell is typing on can be edited.
+    if (row !== buffer.baseY + buffer.cursorY - buffer.viewportY) return;
+    const delta = column - buffer.cursorX;
+    if (!delta) return;
+    terminal.input(delta < 0 ? "\x1b[D".repeat(-delta) : "\x1b[C".repeat(delta), true);
+  };
+  element.addEventListener("mousedown", rememberPointer);
+  element.addEventListener("mouseup", moveCaret);
   let background = "";
   const frame = terminal.onRender(() => {
     const buffer = terminal.buffer.active;
@@ -107,6 +138,8 @@ export function createTerminalView(element: HTMLElement, handlers: {
     motion.removeEventListener("change", updateMotion);
     cursorFrame.dispose(); cursorSelection.dispose(); caret.dispose();
     suggestions.dispose(); input.dispose(); app.dispose(); frame.dispose(); dimensions.dispose(); observer.disconnect(); terminal.dispose();
+    element.removeEventListener("mousedown", rememberPointer);
+    element.removeEventListener("mouseup", moveCaret);
     element.style.removeProperty("--terminal-background");
   } };
 }

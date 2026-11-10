@@ -28,6 +28,10 @@ Install-Module PSReadLine -Scope CurrentUser -Force
 
 The app sets `RemoteSigned` only for its PowerShell process so local modules can load. System execution policy stays unchanged. If suggestions cannot load, the terminal shows a warning and remains usable. The Windows history integration test also requires PSReadLine 2.1 or newer; it uses a temporary history file.
 
+## Moving the caret in the terminal
+
+Clicking on the line you are typing moves the caret to that spot, so a command can be edited in the middle without reaching for the arrow keys. Only the line the shell is currently reading is moved: clicks on older output do nothing, and clicks are ignored while a command runs or while a full screen program owns the screen. Dragging still selects text and double clicking still selects a word.
+
 Terminal tabs automatically show brand icons for `codex`, `claude`, `antigravity` / `agy`, and `opencode` commands submitted in the app's PowerShell session. Icons reset when the shell prompt returns and stay synchronized when terminals detach or dock. Shell aliases and executable paths are supported; nested shells and wrapper scripts do not report their internal commands. Brand icons come from [Lobe Icons](https://github.com/lobehub/lobe-icons), with its license in `public/terminal-icons/LICENSE`.
 
 ## Remembering the open folder
