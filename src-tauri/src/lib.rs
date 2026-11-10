@@ -1,6 +1,7 @@
 mod files;
 mod git;
 mod terminal;
+mod workspace;
 use tauri::{Emitter, Manager};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -40,7 +41,9 @@ pub fn run() {
             terminal::terminal_stop,
             terminal::terminal_popout,
             terminal::terminal_open_external,
-            files::list_directory
+            files::list_directory,
+            workspace::restore_workspace,
+            workspace::save_workspace
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

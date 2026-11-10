@@ -26,6 +26,8 @@
     "allow-terminal-stop",
     "allow-terminal-popout",
     "allow-terminal-open-external",
-    "allow-list-directory"
+    "allow-list-directory",
+    "allow-restore-workspace",
+    "allow-save-workspace"
   ]
 }

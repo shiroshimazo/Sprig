@@ -34,6 +34,9 @@ function App() {
   const [openTabs, setOpenTabs] = useState<string[]>([]);
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
   const [folderPath, setFolderPath] = useState<string | null>(null);
+  // The last open folder is restored on startup and saved whenever it
+  // changes, so the folder survives closing the app or shutting down the PC.
+  const [workspaceReady, setWorkspaceReady] = useState(false);
   const [creation, setCreation] = useState<{ kind: "file" | "folder" } | null>(null);
   const [sidebarMode, setSidebarMode] = useState<"files" | "source">("files");
   const sourceControl = useSourceControl(folderPath, sidebarMode === "source");
@@ -196,6 +199,33 @@ function App() {
   }, [dragging]);
   const [dialogPending, setDialogPending] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
+  // Reopen the folder that was open during the previous run. The backend also
+  // grants file system access to it, which a folder picked in an earlier
+  // session would not have.
+  useEffect(() => {
+    let cancelled = false;
+    const ready = () => { if (!cancelled) setWorkspaceReady(true); };
+    if (!isTauri()) { ready(); return; }
+    void invoke<{ folder: string | null }>("restore_workspace")
+      .then((state) => {
+        const folder = state?.folder;
+        if (cancelled || !folder) return;
+        setFolderPath(folder);
+        setTerminals((current) => current.map((tab) => tab.detached ? tab : { ...tab, cwd: folder }));
+        setSidebarVisible(true);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setDialogError(`Cannot reopen the last folder: ${error instanceof Error ? error.message : String(error)}`);
+      })
+      .finally(ready);
+    return () => { cancelled = true; };
+  }, []);
+  // Remember the open folder right away so it survives a crash or a shutdown.
+  useEffect(() => {
+    if (!workspaceReady || !folderPath) return;
+    void invoke("save_workspace", { folder: folderPath }).catch(() => {});
+  }, [folderPath, workspaceReady]);
   const dialogActive = useRef(false);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const fileMenuRef = useRef<HTMLDivElement>(null);
@@ -721,7 +751,8 @@ function App() {
               </div>
             </div>
             <div className="terminal-panes">
-              {terminals.map((tab) => (
+              {/* Wait for the restored folder so the shell starts in it. */}
+              {workspaceReady && terminals.map((tab) => (
                 <div
                   key={tab.id}
                   role="tabpanel"

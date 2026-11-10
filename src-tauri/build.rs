@@ -15,6 +15,8 @@ fn main() {
             "terminal_stop",
             "terminal_popout",
             "terminal_open_external",
+            "restore_workspace",
+            "save_workspace",
         ]),
     ))
     .expect("failed to build Tauri permissions");
