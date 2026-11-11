@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Terminal art checks</title>
+<body>
+<div id="root"></div>
+<script type="module">
+  import "../src/main.tsx";
+  import { createTerminalView } from "../src/terminalView.ts";
+
+  const wait = () => new Promise((resolve) => requestAnimationFrame(resolve));
+  const assert = (value, message) => { if (!value) throw new Error(message); };
+
+  window.terminalArtChecks = (async () => {
+    while (!document.querySelector("#root .terminal-content")) await wait();
+    const element = document.createElement("div");
+    element.className = "terminal-content";
+    element.style.cssText = "position:fixed;inset:80px 0 0;background:#090909;z-index:999";
+    document.body.append(element);
+    const view = createTerminalView(element, { input: () => {}, resize: () => {}, canFit: () => true });
+    try {
+      view.fit();
+      await document.fonts.ready;
+      await wait();
+      const art = "\u2588\u2580\u2584\u258c\u2590\u2591\u2592\u2593\u2500\u2502".repeat(2) + "X";
+      await new Promise((resolve) => view.terminal.write(`${art}\r\n\x1b[1m${art}\x1b[0m`, resolve));
+      await wait();
+      await wait();
+      await document.fonts.ready;
+      await wait();
+      await wait();
+
+      const checkAlignment = () => {
+        const grid = element.querySelector(".xterm-rows");
+        const cellWidth = grid.getBoundingClientRect().width / view.terminal.cols;
+        for (const row of Array.from(grid.children).slice(0, 2)) {
+          const text = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+          let node;
+          while ((node = text.nextNode()) && !node.textContent.includes("X")) {}
+          assert(node, "Art marker is visible");
+          const range = document.createRange();
+          const offset = node.textContent.indexOf("X");
+          range.setStart(node, offset);
+          range.setEnd(node, offset + 1);
+          const actual = range.getBoundingClientRect().left - row.getBoundingClientRect().left;
+          assert(Math.abs(actual - (art.length - 1) * cellWidth) < 1, "Normal and bold art stay aligned after fonts load");
+        }
+      };
+      checkAlignment();
+      element.style.right = "120px";
+      view.fit();
+      await wait();
+      await wait();
+      checkAlignment();
+      assert(element.querySelector(".xterm-screen").getBoundingClientRect().width <= element.clientWidth, "Terminal fits after resize");
+      return "Normal and bold block art align before and after resize";
+    } finally {
+      view.dispose();
+      element.remove();
+    }
+  })();
+</script>
+</body>
+</html>

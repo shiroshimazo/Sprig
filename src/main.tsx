@@ -19,8 +19,16 @@ if (import.meta.hot) import.meta.hot.dispose(stopInputCarets);
 
 const detached = new URLSearchParams(window.location.search).get("detached");
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    {detached ? <DetachedTerminal /> : <App />}
-  </React.StrictMode>,
-);
+// Load both font subsets before xterm caches fallback widths for block art.
+const terminalFont = Promise.allSettled([
+  document.fonts.load('13px "Cascadia Mono"', "W\u2580\u2584\u2588\u258c\u2590"),
+  document.fonts.load('600 13px "Cascadia Mono"', "W\u2580\u2584\u2588\u258c\u2590"),
+]);
+
+void terminalFont.then(() => {
+  ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+    <React.StrictMode>
+      {detached ? <DetachedTerminal /> : <App />}
+    </React.StrictMode>,
+  );
+});
