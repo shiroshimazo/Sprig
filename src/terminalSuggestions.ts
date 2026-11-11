@@ -117,12 +117,16 @@ export function createTerminalSuggestions(terminal: Terminal, element: HTMLEleme
     return false;
   };
   const render = terminal.onRender(position);
+  // The popup is anchored to the cursor, so it has to follow the terminal when the
+  // window changes size.
+  window.addEventListener("resize", position);
   const outside = (event: PointerEvent) => { if (!popup.contains(event.target as Node)) dismiss(); };
   document.addEventListener("pointerdown", outside);
   terminal.textarea?.addEventListener("blur", dismiss);
   return { input, key, receive, setShellReady, get shellReady() { return shellReady; }, dispose: () => {
     clearTimeout(timer);
     render.dispose();
+    window.removeEventListener("resize", position);
     document.removeEventListener("pointerdown", outside);
     terminal.textarea?.removeEventListener("blur", dismiss);
     for (const attribute of ["aria-autocomplete", "aria-controls", "aria-expanded", "aria-activedescendant"]) terminal.textarea?.removeAttribute(attribute);

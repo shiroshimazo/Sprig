@@ -16,6 +16,7 @@ fn main() {
             "terminal_stop",
             "terminal_popout",
             "terminal_open_external",
+            "window_new",
             "restore_workspace",
             "save_workspace",
         ]),

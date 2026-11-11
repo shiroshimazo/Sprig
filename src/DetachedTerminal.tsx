@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
-import { emitTo, listen } from "@tauri-apps/api/event";
+import { emit, emitTo, listen } from "@tauri-apps/api/event";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -13,9 +13,10 @@ import TerminalTabIcon from "./TerminalTabIcon";
 
 // One PTY-backed xterm view per hosted terminal. The shell never kills a
 // session on its own — closing the window docks everything back through the
-// owner in the main window.
-function HostedTerminal({ id, active, onError }: {
+// IDE window that owns the terminal.
+function HostedTerminal({ id, owner, active, onError }: {
   id: string;
+  owner: string;
   active: boolean;
   onError: (message: string) => void;
 }) {
@@ -31,7 +32,7 @@ function HostedTerminal({ id, active, onError }: {
     let exited = false;
     let messages = Promise.resolve();
     const send = (message: ViewMessage) => {
-      messages = messages.then(async () => { if (!disposed) await emitTo(MAIN_LABEL, `terminal-view-${id}`, message); })
+      messages = messages.then(async () => { if (!disposed) await emitTo(owner, `terminal-view-${id}`, message); })
         .catch((error: unknown) => { if (!disposed) onError(String(error)); });
     };
     const view = createTerminalView(element, {
@@ -93,7 +94,7 @@ function HostedTerminal({ id, active, onError }: {
       viewRef.current = null;
       view.dispose();
     };
-  }, [id, onError]);
+  }, [id, owner, onError]);
 
   // Refit and focus when this terminal becomes the visible tab.
   useEffect(() => {
@@ -125,31 +126,47 @@ export default function DetachedTerminal() {
   const reportError = useCallback((message: string) => setError(message), []);
 
   const sendView = useCallback((id: string, message: ViewMessage) => {
-    void emitTo(MAIN_LABEL, `terminal-view-${id}`, message).catch((error: unknown) => setError(String(error)));
+    const owner = tabsRef.current.find((tab) => tab.id === id)?.owner ?? MAIN_LABEL;
+    void emitTo(owner, `terminal-view-${id}`, message).catch((error: unknown) => setError(String(error)));
   }, []);
   const dockTab = useCallback((id: string) => sendView(id, { type: "dock" }), [sendView]);
   const closeTab = useCallback((id: string) => sendView(id, { type: "close" }), [sendView]);
 
-  // The main window owns the terminal list; this window just mirrors it.
+  // The IDE windows own the terminal lists; this window just mirrors them.
   useEffect(() => {
     let disposed = false;
-    let stop: (() => void) | undefined;
+    const stops: (() => void)[] = [];
     void (async () => {
       const stopListen = await listen<DetachedWindowMessage>("detached-window", ({ payload }) => {
         if (disposed || payload.type !== "roster") return;
         const list = payload.terminals;
+        // Every IDE window sends its own roster, so the lists are merged
+        // per owner instead of replacing each other.
         const added = list.find((tab) => !tabsRef.current.some((previous) => previous.id === tab.id));
-        if (list.length > 0) everNonEmpty.current = true;
-        tabsRef.current = list;
-        setTabs(list);
-        setActiveId((current) => added?.id ?? (current && list.some((tab) => tab.id === current) ? current : list[0]?.id ?? null));
+        const merged = [...tabsRef.current.filter((tab) => tab.owner !== payload.owner), ...list];
+        if (merged.length > 0) everNonEmpty.current = true;
+        tabsRef.current = merged;
+        setTabs(merged);
+        setActiveId((current) => added?.id ?? (current && merged.some((tab) => tab.id === current) ? current : merged[0]?.id ?? null));
       });
       if (disposed) { stopListen(); return; }
-      stop = stopListen;
-      void emitTo(MAIN_LABEL, "detached-window", { type: "ready" } satisfies DetachedWindowMessage)
+      stops.push(stopListen);
+      // A closed IDE window takes its detached terminals with it.
+      const stopOwner = await listen<string>("detached-owner-closed", ({ payload }) => {
+        if (disposed || !payload) return;
+        const remaining = tabsRef.current.filter((tab) => tab.owner !== payload);
+        if (remaining.length === tabsRef.current.length) return;
+        tabsRef.current = remaining;
+        setTabs(remaining);
+        setActiveId((current) => (current && remaining.some((tab) => tab.id === current) ? current : remaining[0]?.id ?? null));
+      });
+      if (disposed) { stopOwner(); return; }
+      stops.push(stopOwner);
+      // Every owner has to send its terminals again.
+      void emit("detached-window", { type: "ready" } satisfies DetachedWindowMessage)
         .catch((error: unknown) => { if (!disposed) setError(String(error)); });
     })().catch((error: unknown) => { if (!disposed) setError(String(error)); });
-    return () => { disposed = true; stop?.(); };
+    return () => { disposed = true; stops.forEach((stop) => stop()); };
   }, []);
 
   // Once the window had terminals and lost them all (or the last one docked),
@@ -224,7 +241,8 @@ export default function DetachedTerminal() {
           })}
           <button className="terminal-tab-add detached-tab-action" aria-label="New terminal" title="New terminal" disabled={!activeId} onClick={() => {
             if (!activeId) return;
-            void emitTo(MAIN_LABEL, "detached-window", { type: "create", sourceId: activeId } satisfies DetachedWindowMessage).catch((error: unknown) => setError(String(error)));
+            const owner = tabs.find((tab) => tab.id === activeId)?.owner ?? MAIN_LABEL;
+            void emitTo(owner, "detached-window", { type: "create", sourceId: activeId } satisfies DetachedWindowMessage).catch((error: unknown) => setError(String(error)));
           }}>
             <HugeiconsIcon icon={PlusSignIcon} size={13} aria-hidden="true" focusable="false" />
           </button>
@@ -232,7 +250,7 @@ export default function DetachedTerminal() {
       )}
       <div className="detached-panes">
         {tabs.map((tab) => (
-          <HostedTerminal key={tab.id} id={tab.id} active={tab.id === activeId} onError={reportError} />
+          <HostedTerminal key={tab.id} id={tab.id} owner={tab.owner} active={tab.id === activeId} onError={reportError} />
         ))}
       </div>
       {tabs.length === 0 && (

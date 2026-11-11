@@ -16,6 +16,8 @@ struct Session {
     master: Box<dyn MasterPty + Send>,
     writer: Box<dyn Write + Send>,
     killer: Box<dyn ChildKiller + Send + Sync>,
+    /// Label of the window that started the session.
+    owner: String,
 }
 
 impl Drop for Session {
@@ -66,12 +68,14 @@ fn size(cols: u16, rows: u16) -> Result<PtySize, String> {
 #[tauri::command]
 pub async fn terminal_start(
     app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
     id: String,
     cols: u16,
     rows: u16,
     output: Channel<TerminalEvent>,
     cwd: Option<std::path::PathBuf>,
 ) -> Result<(), String> {
+    let owner = window.label().to_string();
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<Terminals>();
         let mut sessions = state.0.lock().map_err(|e| e.to_string())?;
@@ -117,6 +121,8 @@ pub async fn terminal_start(
         #[cfg(not(windows))]
         command.env("PS1", "\\W \\$ ");
         command.env("TERM", "xterm-256color");
+        command.env("COLORTERM", "truecolor");
+        command.env("TERM_PROGRAM", "sprig");
         let mut child = pair
             .slave
             .spawn_command(command)
@@ -128,6 +134,7 @@ pub async fn terminal_start(
                 master: pair.master,
                 writer,
                 killer: child.clone_killer(),
+                owner,
             },
         );
         drop(sessions);
@@ -182,19 +189,26 @@ pub fn terminal_write(
 }
 
 #[tauri::command]
-pub fn terminal_resize(
-    state: tauri::State<Terminals>,
+pub async fn terminal_resize(
+    app: tauri::AppHandle,
     id: String,
     cols: u16,
     rows: u16,
 ) -> Result<(), String> {
-    let sessions = state.0.lock().map_err(|e| e.to_string())?;
-    sessions
-        .get(&id)
-        .ok_or("Terminal is not running.")?
-        .master
-        .resize(size(cols, rows)?)
-        .map_err(|e| e.to_string())
+    // Resizing the pseudo console blocks, so it runs off the command thread to keep
+    // the app responsive while the window is being resized.
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<Terminals>();
+        let sessions = state.0.lock().map_err(|e| e.to_string())?;
+        sessions
+            .get(&id)
+            .ok_or("Terminal is not running.")?
+            .master
+            .resize(size(cols, rows)?)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -209,7 +223,7 @@ pub const DETACHED_LABEL: &str = "detached-terminals";
 
 #[tauri::command]
 pub async fn terminal_popout(app: tauri::AppHandle, window: tauri::WebviewWindow, id: String) -> Result<(), String> {
-    if window.label() != "main" { return Err("Only the main window can detach a terminal.".into()); }
+    if window.label() == DETACHED_LABEL { return Err("A terminal window cannot detach a terminal.".into()); }
     if id.is_empty() || !id.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-') {
         return Err("Invalid terminal ID.".into());
     }
@@ -315,6 +329,26 @@ pub fn stop_all(app: &tauri::AppHandle) {
     drop(removed);
 }
 
+/// Stops the sessions of a window that was closed, so no shell is left behind.
+pub fn stop_owner(app: &tauri::AppHandle, owner: &str) {
+    let state = app.state::<Terminals>();
+    let removed = state.0.lock().ok().map(|mut sessions| {
+        let ids: Vec<String> = sessions
+            .iter()
+            .filter(|(_, session)| session.owner == owner)
+            .map(|(id, _)| id.clone())
+            .collect();
+        let mut removed = Vec::new();
+        for id in ids {
+            if let Some(session) = sessions.remove(&id) {
+                removed.push(session);
+            }
+        }
+        removed
+    });
+    drop(removed);
+}
+
 #[cfg(all(test, windows))]
 mod tests {
     use super::*;
@@ -336,6 +370,7 @@ mod tests {
             master: pair.master,
             writer,
             killer: child.clone_killer(),
+            owner: "main".to_string(),
         };
         drop(session);
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);

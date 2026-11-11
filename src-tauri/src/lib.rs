@@ -1,6 +1,7 @@
 mod files;
 mod git;
 mod terminal;
+mod window;
 mod workspace;
 use tauri::{Emitter, Manager};
 
@@ -20,8 +21,16 @@ pub fn run() {
                     if let Some(detached) = window.app_handle().get_webview_window(terminal::DETACHED_LABEL) {
                         let _ = detached.destroy();
                     }
+                    window::close_all(window.app_handle());
                 } else if window.label() == terminal::DETACHED_LABEL {
-                    let _ = window.app_handle().emit_to("main", "terminal-window-closed", ());
+                    // Every IDE window owns a share of the detached terminals,
+                    // so they all have to dock them again.
+                    let _ = window.app_handle().emit("terminal-window-closed", ());
+                } else {
+                    // A closed IDE window leaves no shells and no detached
+                    // terminals behind.
+                    terminal::stop_owner(window.app_handle(), window.label());
+                    let _ = window.app_handle().emit("detached-owner-closed", window.label());
                 }
             }
         })
@@ -42,6 +51,7 @@ pub fn run() {
             terminal::terminal_stop,
             terminal::terminal_popout,
             terminal::terminal_open_external,
+            window::window_new,
             files::list_directory,
             workspace::restore_workspace,
             workspace::save_workspace

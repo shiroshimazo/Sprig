@@ -8,6 +8,12 @@ import { createSmoothCaret } from "./smoothCaret";
 import type { TerminalIconId } from "./terminalIcons";
 import "@xterm/xterm/css/xterm.css";
 
+// The terminal font stack. The second spelling resolves to the same fonts and is
+// only used to make xterm re-measure its cell size, which it does when the font
+// options change.
+const FONT_FAMILY = '"Cascadia Mono", Consolas, monospace';
+const FONT_FAMILY_REMADE = '"Cascadia Mono",Consolas,monospace';
+
 export function createTerminalView(element: HTMLElement, handlers: {
   input: (data: string) => void;
   resize: (cols: number, rows: number) => void;
@@ -17,8 +23,8 @@ export function createTerminalView(element: HTMLElement, handlers: {
   const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const terminal = new Terminal({
     smoothScrollDuration: motion.matches ? 0 : 120,
-    fontFamily: '"Cascadia Mono", Consolas, monospace', fontSize: 13, lineHeight: 1,
-    cursorBlink: false, disableStdin: true, screenReaderMode: true,
+    fontFamily: FONT_FAMILY, fontSize: 13, lineHeight: 1,
+    cursorBlink: false, disableStdin: true,
     theme: { background: "#090909", foreground: "#e5e5e5", cursor: "#e5e5e5", selectionBackground: "#404040" },
   });
   const updateMotion = () => { terminal.options.smoothScrollDuration = motion.matches ? 0 : 120; };
@@ -132,7 +138,16 @@ export function createTerminalView(element: HTMLElement, handlers: {
   };
   const observer = new ResizeObserver(fit);
   observer.observe(element);
-  void document.fonts.ready.then(fit);
+  // xterm measures the cell size once, when the terminal opens. A webfont that
+  // finishes loading after that leaves the grid sized for the fallback font, so the
+  // terminal ends up wider than its panel and the extra columns get cut off.
+  // Restating the font makes xterm measure again, then the grid is fitted to it.
+  void document.fonts.ready.then(() => {
+    if (disposed) return;
+    terminal.options.fontFamily = FONT_FAMILY_REMADE;
+    terminal.options.fontFamily = FONT_FAMILY;
+    fit();
+  });
   return { terminal, fit, report, suggestions, dispose: () => {
     disposed = true;
     motion.removeEventListener("change", updateMotion);

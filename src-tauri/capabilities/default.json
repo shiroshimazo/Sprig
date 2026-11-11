@@ -29,6 +29,7 @@
     "allow-terminal-open-external",
     "allow-list-directory",
     "allow-restore-workspace",
-    "allow-save-workspace"
+    "allow-save-workspace",
+    "allow-window-new"
   ]
 }

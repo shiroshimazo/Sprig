@@ -2,13 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { emitTo, listen } from "@tauri-apps/api/event";
-import { DETACHED_LABEL } from "./terminalRelay";
+import { DETACHED_LABEL, MAIN_LABEL } from "./terminalRelay";
 import type { DetachedWindowMessage } from "./terminalRelay";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { animate } from "animejs";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowUpRightIcon, CommandLineIcon, File01Icon, Folder01Icon, FolderOpenIcon, GitBranchIcon, Menu01Icon, MultiplicationSignIcon, PlusSignIcon, SaveIcon, SidebarLeftIcon, TerminalIcon } from "@hugeicons/core-free-icons";
+import { ArrowUpRightIcon, CommandLineIcon, File01Icon, Folder01Icon, FolderOpenIcon, GitBranchIcon, Menu01Icon, MultiplicationSignIcon, PlusSignIcon, SaveIcon, SidebarLeftIcon, TerminalIcon, WindowsNewIcon } from "@hugeicons/core-free-icons";
 import { beyondDragThreshold, isOutsideWindow, type WindowBounds } from "./terminalDrag";
 import ResizeHandle from "./ResizeHandle";
 import FolderTree from "./FolderTree";
@@ -56,17 +56,20 @@ function App() {
   pendingRef.current = pendingDetach;
   const rosterSignature = useRef("\0");
   const createDetached = useRef<(sourceId: string) => void>(() => {});
+  // Every IDE window owns the terminals it detached, so the shared detached
+  // window has to send their messages back to the right owner.
+  const [ownerLabel] = useState(() => (isTauri() ? getCurrentWindow().label : MAIN_LABEL));
   const emitRoster = useCallback(() => {
     if (!isTauri()) return;
     const pending = pendingRef.current;
     const list = terminalsRef.current
       .filter((tab) => tab.sessionId && (tab.detached || pending.includes(tab.id)))
-      .map(({ sessionId, name, cwd, icon }) => ({ id: sessionId!, name, cwd, icon }));
+      .map(({ sessionId, name, cwd, icon }) => ({ id: sessionId!, name, cwd, icon, owner: ownerLabel }));
     const signature = JSON.stringify(list);
     if (rosterSignature.current === signature) return;
     rosterSignature.current = signature;
-    void emitTo(DETACHED_LABEL, "detached-window", { type: "roster", terminals: list } satisfies DetachedWindowMessage).catch(() => {});
-  }, []);
+    void emitTo(DETACHED_LABEL, "detached-window", { type: "roster", owner: ownerLabel, terminals: list } satisfies DetachedWindowMessage).catch(() => {});
+  }, [ownerLabel]);
   useEffect(() => { emitRoster(); }, [terminals, pendingDetach, emitRoster]);
   // Drop pending entries once they detach (handoff done) or after a short
   // grace period if the panel never reports back.
@@ -230,6 +233,18 @@ function App() {
   }, [folderPath, workspaceReady]);
   const dialogActive = useRef(false);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
+  const [windowPending, setWindowPending] = useState(false);
+  const openNewWindow = useCallback(async () => {
+    if (windowPending) return;
+    setWindowPending(true);
+    try {
+      await invoke("window_new");
+    } catch (error) {
+      setDialogError(`Cannot open a new window: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setWindowPending(false);
+    }
+  }, [windowPending]);
   const fileMenuRef = useRef<HTMLDivElement>(null);
   const fileMenuButton = useRef<HTMLButtonElement>(null);
   const [fileContent, setFileContent] = useState("");
@@ -534,6 +549,10 @@ function App() {
               <button role="menuitem" disabled={dialogPending} onClick={() => { setFileMenuOpen(false); void selectPath(true); }}>
                 <HugeiconsIcon icon={FolderOpenIcon} size={13} aria-hidden="true" focusable="false" />
                 Open Folder
+              </button>
+              <button role="menuitem" disabled={windowPending} onClick={() => { setFileMenuOpen(false); void openNewWindow(); }}>
+                <HugeiconsIcon icon={WindowsNewIcon} size={13} aria-hidden="true" focusable="false" />
+                New Window
               </button>
             </div>
           )}

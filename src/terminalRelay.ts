@@ -20,13 +20,14 @@ export type OwnerMessage = TerminalEvent
 
 export type OwnerEnvelope = { id: string; message: OwnerMessage };
 
-export type DetachedTerminalInfo = { id: string; name: string; cwd: string | null; icon?: TerminalIconId };
+export type DetachedTerminalInfo = { id: string; name: string; cwd: string | null; icon?: TerminalIconId; owner: string };
 
-// Window-level messages between the shared detached window and the main window.
+// Window-level messages between the shared detached window and the IDE
+// windows that own the detached terminals.
 export type DetachedWindowMessage =
   | { type: "ready" }
   | { type: "create"; sourceId: string }
-  | { type: "roster"; terminals: DetachedTerminalInfo[] };
+  | { type: "roster"; owner: string; terminals: DetachedTerminalInfo[] };
 
 // Pause delivery during handoff so the snapshot and live output never overlap.
 export class TerminalRelay {
