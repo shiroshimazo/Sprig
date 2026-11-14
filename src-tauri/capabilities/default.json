@@ -30,6 +30,8 @@
     "allow-list-directory",
     "allow-restore-workspace",
     "allow-save-workspace",
-    "allow-window-new"
+    "allow-window-new",
+    "allow-watch-folder",
+    "allow-unwatch-folder"
   ]
 }

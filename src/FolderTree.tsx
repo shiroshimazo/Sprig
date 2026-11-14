@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { FileTree, FileTreeFile, FileTreeFolder } from "./components/motion/file-tree";
+import { isInsideFolder } from "./filePaths";
 
 type FileEntry = {
   name: string;
@@ -23,18 +25,37 @@ type FolderTreeProps = {
   creation: { kind: "file" | "folder" } | null;
   onCreationDone: () => void;
   changedPaths?: string[];
+  refreshToken?: number;
+  onFilesChanged?: () => void;
 };
+
+type FsChangedPayload = { paths?: string[] };
 
 const RETRY_SUFFIX = "::retry";
 const LOADING_SUFFIX = "::loading";
 const EMPTY_SUFFIX = "::empty";
+// Disk changes arrive in bursts (a copy, a checkout, a build), so the tree
+// waits for the burst to settle before it re-reads the folders.
+const RELOAD_DEBOUNCE_MS = 120;
 
-export default function FolderTree({ path, name = path, activePath, onOpenFile, creation, onCreationDone, changedPaths = [] }: FolderTreeProps) {
+export default function FolderTree({ path, name = path, activePath, onOpenFile, creation, onCreationDone, changedPaths = [], refreshToken, onFilesChanged }: FolderTreeProps) {
   const cache = useRef(new Map<string, CacheEntry>());
   const pending = useRef(new Set<string>());
   const reload = useRef(new Set<string>());
   const lastCreation = useRef<typeof creation>(null);
   const selectedFolder = useRef(path);
+  // The workspace root bounds the watcher, so it is also the fallback
+  // boundary when a changed path matches no loaded folder.
+  const rootPath = useRef(path);
+  rootPath.current = path;
+  // The parent may hand over a new callback on every render, so the disk
+  // listener reads it from a ref instead of resubscribing.
+  const filesChanged = useRef(onFilesChanged);
+  filesChanged.current = onFilesChanged;
+  // Folders that have to be re-read once the current burst of disk changes
+  // settles, and the timer of that burst.
+  const queued = useRef(new Set<string>());
+  const debounce = useRef<number | null>(null);
   const [draft, setDraft] = useState<{ parent: string; kind: "file" | "folder" } | null>(null);
   const [entryName, setEntryName] = useState("");
   const [creationError, setCreationError] = useState<string | null>(null);
@@ -77,6 +98,86 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
       if (reload.current.delete(folder)) void load(folder);
     }
   }, [bump]);
+
+  // Re-reads a folder. When a load is already running the folder goes into
+  // the reload set, so it is listed again once the running load finishes.
+  const reloadFolder = useCallback((folder: string) => {
+    if (pending.current.has(folder)) {
+      reload.current.add(folder);
+      return;
+    }
+    void load(folder);
+  }, [load]);
+
+  // A burst of disk changes collapses into a single pass over the folders.
+  const flush = useCallback(() => {
+    debounce.current = null;
+    const folders = [...queued.current];
+    queued.current.clear();
+    for (const folder of folders) reloadFolder(folder);
+    filesChanged.current?.();
+  }, [reloadFolder]);
+
+  const queueReload = useCallback((folders: Iterable<string>) => {
+    for (const folder of folders) queued.current.add(folder);
+    if (debounce.current !== null) window.clearTimeout(debounce.current);
+    debounce.current = window.setTimeout(flush, RELOAD_DEBOUNCE_MS);
+  }, [flush]);
+
+  // Works out which of the already loaded folders a disk change touches and
+  // queues them for a re-read.
+  const handleDiskChange = useCallback((changed: string[]) => {
+    if (!changed.length) return;
+    const loaded = [...cache.current.keys()];
+    const affected = new Set<string>();
+    let reloadAll = false;
+    for (const target of changed) {
+      let matched = false;
+      for (const folder of loaded) {
+        if (isInsideFolder(folder, target)) {
+          affected.add(folder);
+          matched = true;
+        }
+      }
+      // A change under the workspace root that matches no loaded folder means
+      // the reported path is spelled differently than the cached keys. Every
+      // loaded folder is re-read then, so a path format mismatch can never
+      // make the tree miss an update.
+      if (!matched && isInsideFolder(rootPath.current, target)) reloadAll = true;
+    }
+    if (reloadAll) for (const folder of loaded) affected.add(folder);
+    queueReload(affected);
+  }, [queueReload]);
+
+  // Watch the workspace so changes on disk reach the tree. A watcher that
+  // fails must never break the tree, so its errors are ignored.
+  useEffect(() => {
+    if (!isTauri()) return;
+    void invoke("watch_folder", { path }).catch(() => {});
+    return () => { void invoke("unwatch_folder", { path }).catch(() => {}); };
+  }, [path]);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    let disposed = false;
+    let stop: (() => void) | undefined;
+    void listen<FsChangedPayload>("fs-changed", ({ payload }) => {
+      handleDiskChange(payload?.paths ?? []);
+    }).then((unlisten) => { if (disposed) unlisten(); else stop = unlisten; }).catch(() => {});
+    return () => { disposed = true; stop?.(); };
+  }, [handleDiskChange]);
+
+  // A pending reload must not fire after the tree is gone.
+  useEffect(() => () => {
+    if (debounce.current !== null) window.clearTimeout(debounce.current);
+  }, []);
+
+  // The manual refresh only re-reads the folders that are already loaded, so
+  // the tree keeps its expansion, its selection and its open file.
+  useEffect(() => {
+    if (!refreshToken) return;
+    for (const folder of cache.current.keys()) reloadFolder(folder);
+  }, [refreshToken, reloadFolder]);
 
   useEffect(() => {
     if (!creation || creation === lastCreation.current || creatingRef.current) return;
@@ -156,11 +257,13 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
   const renderFolder = (folderPath: string, folderName: string, isRoot = false): ReactNode => {
     const cached = cache.current.get(folderPath);
     let children: ReactNode;
-    if (!cached || cached.loading) {
-      children = (
-        <FileTreeFile value={`${folderPath}${LOADING_SUFFIX}`} name="Loading folder..." disabled />
-      );
-    } else if (cached.error) {
+    if (cached?.entries) {
+      // A folder that is re-read keeps its entries on screen, so the tree
+      // never flickers back to the loading placeholder.
+      children = cached.entries.length === 0
+        ? <FileTreeFile value={`${folderPath}${EMPTY_SUFFIX}`} name="Empty folder." disabled />
+        : cached.entries.map(renderEntry);
+    } else if (cached?.error) {
       children = (
         <FileTreeFile
           value={`${folderPath}${RETRY_SUFFIX}`}
@@ -168,12 +271,10 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
           title={cached.error}
         />
       );
-    } else if (cached.entries && cached.entries.length === 0) {
-      children = (
-        <FileTreeFile value={`${folderPath}${EMPTY_SUFFIX}`} name="Empty folder." disabled />
-      );
     } else {
-      children = cached.entries!.map(renderEntry);
+      children = (
+        <FileTreeFile value={`${folderPath}${LOADING_SUFFIX}`} name="Loading folder..." disabled />
+      );
     }
     const changedFolder = !isRoot && isChanged(folderPath);
     return (

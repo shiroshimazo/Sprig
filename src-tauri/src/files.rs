@@ -149,7 +149,7 @@ pub struct FileEntry {
     is_symlink: bool,
 }
 
-fn authorized_path(app: &tauri::AppHandle, path: &Path) -> Result<PathBuf, String> {
+pub(crate) fn authorized_path(app: &tauri::AppHandle, path: &Path) -> Result<PathBuf, String> {
     let scope = app.fs_scope();
     if !scope.is_allowed(path) {
         return Err("Select this file or folder through the Open dialog first.".into());

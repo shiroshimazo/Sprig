@@ -1,6 +1,7 @@
 mod files;
 mod git;
 mod terminal;
+mod watcher;
 mod window;
 mod workspace;
 use tauri::{Emitter, Manager};
@@ -9,6 +10,7 @@ use tauri::{Emitter, Manager};
 pub fn run() {
     tauri::Builder::default()
         .manage(terminal::Terminals::default())
+        .manage(watcher::Watchers::default())
         .on_page_load(|webview, _| {
             if let Err(error) = webview.set_zoom(1.1) {
                 eprintln!("Cannot set app zoom: {error}");
@@ -16,6 +18,9 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if matches!(event, tauri::WindowEvent::Destroyed) {
+                // A closed window leaves no watcher behind, but the other
+                // windows keep the ones they started.
+                watcher::stop_owner(window.app_handle(), window.label());
                 if window.label() == "main" {
                     terminal::stop_all(window.app_handle());
                     if let Some(detached) = window.app_handle().get_webview_window(terminal::DETACHED_LABEL) {
@@ -53,6 +58,8 @@ pub fn run() {
             terminal::terminal_open_external,
             window::window_new,
             files::list_directory,
+            watcher::watch_folder,
+            watcher::unwatch_folder,
             workspace::restore_workspace,
             workspace::save_workspace
         ])
