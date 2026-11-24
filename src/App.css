@@ -1,6 +1,5 @@
 :root {
-  --background: #090909;
-  --surface: #111111;
+  --background: #131314;
   --control: #191919;
   --border: #262626;
   --text: #e5e5e5;
@@ -53,7 +52,7 @@ body {
   padding: 24px;
   border: 1px solid var(--border);
   border-radius: 4px;
-  background: var(--surface);
+  background: var(--background);
   color: var(--text);
 }
 
@@ -130,7 +129,7 @@ p {
   padding: 4px;
   border: 1px solid var(--border);
   border-radius: 4px;
-  background: var(--surface);
+  background: var(--background);
   box-shadow: 0 8px 24px #000c;
 }
 
@@ -162,12 +161,57 @@ p {
   min-height: 30px;
   padding: 0 12px;
   border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--background);
   line-height: 1;
 }
 
 .toolbar .file-actions { gap: 6px; }
 .toolbar .panel-actions { gap: 4px; }
+
+.toolbar-leading,
+.toolbar-main {
+  display: contents;
+}
+
+.toolbar--windows {
+  min-height: 44px;
+  padding: 0;
+}
+
+.ide .toolbar--windows {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0;
+  border-bottom: 0;
+}
+
+.toolbar--windows .toolbar-leading,
+.toolbar--windows .toolbar-main {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.toolbar--windows .toolbar-leading {
+  justify-content: space-between;
+  gap: 4px;
+  padding: 0 8px;
+}
+
+.toolbar-leading--split + .toolbar-main {
+  border-left: 1px solid var(--border);
+}
+
+.toolbar--windows .toolbar-main,
+.toolbar--windows .toolbar-leading:not(.toolbar-leading--split) {
+  border-bottom: 1px solid var(--border);
+}
+
+.ide:has(.toolbar--windows) .resize-handle--vertical:not(:hover, :focus-visible) {
+  background: var(--background);
+  border-left: 1px solid var(--border);
+}
 
 .toolbar .file-actions button,
 .toolbar .panel-actions button {
@@ -185,6 +229,37 @@ p {
   align-items: center;
   gap: 6px;
   padding-right: 2px;
+}
+
+.window-controls--windows {
+  align-self: stretch;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  margin-left: 4px;
+}
+
+.caption-button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.caption-button:hover {
+  background: #303030;
+}
+
+.caption-button--close:hover {
+  background: #c42b1c;
+}
+
+.caption-button:focus-visible {
+  outline-offset: -2px;
 }
 
 .traffic {
@@ -527,7 +602,7 @@ p {
 .file-error {
   padding: 12px 16px;
   border-bottom: 1px solid #666;
-  background: var(--surface);
+  background: var(--background);
   color: var(--text);
   overflow-wrap: anywhere;
   flex-shrink: 0;
@@ -659,7 +734,7 @@ p {
   padding: 3px;
   border: 1px solid #555;
   border-radius: 4px;
-  background: var(--surface);
+  background: var(--background);
   color: var(--text);
 }
 .terminal-suggestions button { display: flex; align-items: center; gap: 16px; width: 100%; padding: 5px 8px; border: 0; border-radius: 2px; background: transparent; color: inherit; text-align: left; cursor: pointer; }
@@ -830,7 +905,7 @@ body.terminal-dragging * {
   padding: 4px 8px;
   overflow-x: auto;
   border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--background);
 }
 
 .detached-tab-select {

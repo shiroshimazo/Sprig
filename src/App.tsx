@@ -18,6 +18,7 @@ import type { TerminalPanelHandle } from "./TerminalPanel";
 import { SourceControl, CommitHistory, useSourceControl } from "./SourceControl";
 import { useGitStatus } from "./gitStatus";
 import WindowControls from "./WindowControls";
+import { isWindows } from "./lib/platform";
 import TerminalTabIcon from "./TerminalTabIcon";
 import type { TerminalIconId } from "./terminalIcons";
 import "./App.css";
@@ -25,6 +26,7 @@ import "./App.css";
 type TerminalTab = { id: string; name: string; cwd: string | null; icon?: TerminalIconId; detached?: boolean; sessionId?: string; detachOnReady?: boolean };
 
 function App() {
+  const windows = isWindows();
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [terminalVisible, setTerminalVisible] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(22);
@@ -506,6 +508,18 @@ function App() {
       setDialogPending(false);
     }
   }
+  const sidebarToggle = (
+    <button
+      aria-label={sidebarVisible ? "Hide sidebar" : "Show sidebar"}
+      title={sidebarVisible ? "Hide sidebar" : "Show sidebar"}
+      aria-controls="files-panel"
+      aria-expanded={sidebarVisible}
+      onClick={() => setSidebarVisible(!sidebarVisible)}
+    >
+      <HugeiconsIcon icon={SidebarLeftIcon} size={13} aria-hidden="true" focusable="false" />
+    </button>
+  );
+
   return (
     <div className="ide">
       <dialog ref={prompt} className="unsaved-dialog" aria-labelledby="unsaved-title" onCancel={(event) => { event.preventDefault(); respond("cancel"); }}>
@@ -524,75 +538,76 @@ function App() {
           <span className="terminal-drag-ghost-name">{dragGhost.name}</span>
         </div>
       )}
-      <header className="toolbar">
-        <WindowControls />
-        <div className="file-actions" aria-label="File actions" ref={fileMenuRef}>
-          <button
-            ref={fileMenuButton}
-            aria-label={fileMenuOpen ? "Close file menu" : "Open file menu"}
-            aria-haspopup="menu"
-            aria-expanded={fileMenuOpen}
-            aria-controls="file-menu"
-            title="File menu"
-            onClick={() => setFileMenuOpen((open) => !open)}
-          >
-            <HugeiconsIcon icon={Menu01Icon} size={13} aria-hidden="true" focusable="false" />
-          </button>
-          {fileMenuOpen && (
-            <div className="file-menu" id="file-menu" role="menu" aria-label="File actions">
-              <button role="menuitem" disabled={dialogPending || !folderPath} onClick={() => { setFileMenuOpen(false); startCreation("file"); }}>
-                <HugeiconsIcon icon={PlusSignIcon} size={13} aria-hidden="true" focusable="false" />
-                New File
-              </button>
-              <button role="menuitem" disabled={dialogPending || !folderPath} onClick={() => { setFileMenuOpen(false); startCreation("folder"); }}>
-                <HugeiconsIcon icon={Folder01Icon} size={13} aria-hidden="true" focusable="false" />
-                New Folder
-              </button>
-              <button role="menuitem" disabled={!filePath || savePending} onClick={() => { setFileMenuOpen(false); void saveFile(); }}>
-                <HugeiconsIcon icon={SaveIcon} size={13} aria-hidden="true" focusable="false" />
-                {savePending ? "Saving..." : "Save"}
-              </button>
-              <button role="menuitem" disabled={dialogPending} onClick={() => { setFileMenuOpen(false); void selectPath(false); }}>
-                <HugeiconsIcon icon={File01Icon} size={13} aria-hidden="true" focusable="false" />
-                Open File
-              </button>
-              <button role="menuitem" disabled={dialogPending} onClick={() => { setFileMenuOpen(false); void selectPath(true); }}>
-                <HugeiconsIcon icon={FolderOpenIcon} size={13} aria-hidden="true" focusable="false" />
-                Open Folder
-              </button>
-              <button role="menuitem" disabled={windowPending} onClick={() => { setFileMenuOpen(false); void openNewWindow(); }}>
-                <HugeiconsIcon icon={WindowsNewIcon} size={13} aria-hidden="true" focusable="false" />
-                New Window
-              </button>
-            </div>
-          )}
-          {dialogPending && <span className="toolbar-note" role="status">Dialog open…</span>}
+      <header
+        className={windows ? "toolbar toolbar--windows" : "toolbar"}
+        style={windows && sidebarVisible ? { gridTemplateColumns: `${sidebarWidth}% minmax(0, 1fr)` } : undefined}
+      >
+        {!windows && <WindowControls windows={windows} />}
+        <div className={windows && sidebarVisible ? "toolbar-leading toolbar-leading--split" : "toolbar-leading"}>
+          <div className="file-actions" aria-label="File actions" ref={fileMenuRef}>
+            <button
+              ref={fileMenuButton}
+              aria-label={fileMenuOpen ? "Close file menu" : "Open file menu"}
+              aria-haspopup="menu"
+              aria-expanded={fileMenuOpen}
+              aria-controls="file-menu"
+              title="File menu"
+              onClick={() => setFileMenuOpen((open) => !open)}
+            >
+              <HugeiconsIcon icon={Menu01Icon} size={13} aria-hidden="true" focusable="false" />
+            </button>
+            {fileMenuOpen && (
+              <div className="file-menu" id="file-menu" role="menu" aria-label="File actions">
+                <button role="menuitem" disabled={dialogPending || !folderPath} onClick={() => { setFileMenuOpen(false); startCreation("file"); }}>
+                  <HugeiconsIcon icon={PlusSignIcon} size={13} aria-hidden="true" focusable="false" />
+                  New File
+                </button>
+                <button role="menuitem" disabled={dialogPending || !folderPath} onClick={() => { setFileMenuOpen(false); startCreation("folder"); }}>
+                  <HugeiconsIcon icon={Folder01Icon} size={13} aria-hidden="true" focusable="false" />
+                  New Folder
+                </button>
+                <button role="menuitem" disabled={!filePath || savePending} onClick={() => { setFileMenuOpen(false); void saveFile(); }}>
+                  <HugeiconsIcon icon={SaveIcon} size={13} aria-hidden="true" focusable="false" />
+                  {savePending ? "Saving..." : "Save"}
+                </button>
+                <button role="menuitem" disabled={dialogPending} onClick={() => { setFileMenuOpen(false); void selectPath(false); }}>
+                  <HugeiconsIcon icon={File01Icon} size={13} aria-hidden="true" focusable="false" />
+                  Open File
+                </button>
+                <button role="menuitem" disabled={dialogPending} onClick={() => { setFileMenuOpen(false); void selectPath(true); }}>
+                  <HugeiconsIcon icon={FolderOpenIcon} size={13} aria-hidden="true" focusable="false" />
+                  Open Folder
+                </button>
+                <button role="menuitem" disabled={windowPending} onClick={() => { setFileMenuOpen(false); void openNewWindow(); }}>
+                  <HugeiconsIcon icon={WindowsNewIcon} size={13} aria-hidden="true" focusable="false" />
+                  New Window
+                </button>
+              </div>
+            )}
+            {dialogPending && <span className="toolbar-note" role="status">Dialog open…</span>}
+          </div>
+          {windows && <div className="panel-actions">{sidebarToggle}</div>}
         </div>
-        <div
-          className="toolbar-spacer"
-          data-tauri-drag-region
-          aria-hidden="true"
-          onDoubleClick={() => { if (isTauri()) void getCurrentWindow().toggleMaximize().catch(() => {}); }}
-        />
-        <div className="panel-actions" aria-label="Panel visibility">
-          <button
-            aria-label={sidebarVisible ? "Hide sidebar" : "Show sidebar"}
-            title={sidebarVisible ? "Hide sidebar" : "Show sidebar"}
-            aria-controls="files-panel"
-            aria-expanded={sidebarVisible}
-            onClick={() => setSidebarVisible(!sidebarVisible)}
-          >
-            <HugeiconsIcon icon={SidebarLeftIcon} size={13} aria-hidden="true" focusable="false" />
-          </button>
-          <button
-            aria-label={terminalVisible ? "Hide terminal" : "Show terminal"}
-            title={terminalVisible ? "Hide terminal" : "Show terminal"}
-            aria-controls="terminal-panel"
-            aria-expanded={terminalVisible}
-            onClick={() => setTerminalVisible(!terminalVisible)}
-          >
-            <HugeiconsIcon icon={TerminalIcon} size={13} aria-hidden="true" focusable="false" />
-          </button>
+        <div className="toolbar-main">
+          <div
+            className="toolbar-spacer"
+            data-tauri-drag-region
+            aria-hidden="true"
+            onDoubleClick={() => { if (isTauri()) void getCurrentWindow().toggleMaximize().catch(() => {}); }}
+          />
+          <div className="panel-actions" aria-label="Panel visibility">
+            {!windows && sidebarToggle}
+            <button
+              aria-label={terminalVisible ? "Hide terminal" : "Show terminal"}
+              title={terminalVisible ? "Hide terminal" : "Show terminal"}
+              aria-controls="terminal-panel"
+              aria-expanded={terminalVisible}
+              onClick={() => setTerminalVisible(!terminalVisible)}
+            >
+              <HugeiconsIcon icon={TerminalIcon} size={13} aria-hidden="true" focusable="false" />
+            </button>
+          </div>
+          {windows && <WindowControls windows={windows} />}
         </div>
       </header>
 

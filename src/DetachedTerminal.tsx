@@ -9,6 +9,7 @@ import { createTerminalView } from "./terminalView";
 import { MAIN_LABEL } from "./terminalRelay";
 import type { DetachedWindowMessage, DetachedTerminalInfo, OwnerEnvelope, ViewMessage } from "./terminalRelay";
 import WindowControls from "./WindowControls";
+import { isWindows } from "./lib/platform";
 import TerminalTabIcon from "./TerminalTabIcon";
 
 // One PTY-backed xterm view per hosted terminal. The shell never kills a
@@ -195,11 +196,12 @@ export default function DetachedTerminal() {
 
   const activeTab = tabs.find((tab) => tab.id === activeId) ?? null;
   const headerName = activeTab?.name ?? "Terminals";
+  const windows = isWindows();
 
   return (
     <main className="detached-terminal" aria-label="Detached terminals">
-      <header className="toolbar detached-toolbar">
-        <WindowControls />
+      <header className={windows ? "toolbar detached-toolbar toolbar--windows" : "toolbar detached-toolbar"}>
+        {!windows && <WindowControls windows={windows} />}
         <div
           className="toolbar-spacer"
           data-tauri-drag-region
@@ -207,6 +209,7 @@ export default function DetachedTerminal() {
           onDoubleClick={() => { if (isTauri()) void getCurrentWindow().toggleMaximize().catch(() => {}); }}
         />
         <span className="detached-terminal-name" title={headerName}>{headerName}</span>
+        {windows && <WindowControls windows={windows} />}
       </header>
       <h2 className="sr-only">Detached terminals</h2>
       {error && <p role="alert" className="dialog-error">{error}</p>}

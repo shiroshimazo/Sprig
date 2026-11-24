@@ -1,3 +1,5 @@
+import { isWindows } from "./lib/platform.ts";
+
 // The file tree compares paths that come from different sources: the backend
 // lists folders with canonical Windows paths ("\\?\C:\..."), while the OS
 // watcher reports plain absolute paths. Both are brought into one shape
@@ -6,16 +8,6 @@
 const UNC_PREFIX = "\\\\?\\UNC\\";
 const LONG_PREFIX = "\\\\?\\";
 const DRIVE_ROOT = /^[a-zA-Z]:$/;
-
-// `process` does not exist in the browser context of the Tauri webview, so
-// the platform check has to survive an undefined global.
-declare const process: { platform?: string } | undefined;
-
-function isWindows(): boolean {
-  if (typeof process !== "undefined" && process.platform) return process.platform === "win32";
-  // Without `process` the user agent is the only hint left.
-  return typeof navigator !== "undefined" && /win/i.test(`${navigator.platform} ${navigator.userAgent}`);
-}
 
 /**
  * Brings a path into one comparable shape: the "\\?\" prefix Windows APIs

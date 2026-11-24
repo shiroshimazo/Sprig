@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { terminalBackground } from "../src/terminalBackground.ts";
 
-const theme = { background: "#090909", foreground: "#e5e5e5" };
+const theme = { background: "#131314", foreground: "#e5e5e5" };
 const cell = (mode = "default", value = 0, inverse = false) => ({
   isInverse: () => Number(inverse),
   getBgColor: () => value, getFgColor: () => value,
@@ -12,8 +12,8 @@ const cell = (mode = "default", value = 0, inverse = false) => ({
 
 test("terminal padding follows the common screen edge background and resets for the shell", () => {
   assert.equal(terminalBackground([cell("rgb", 0x181818), cell("rgb", 0x181818), cell("rgb", 0x303030), cell()], theme), "#181818");
-  assert.equal(terminalBackground([cell(), cell(), cell(), cell()], theme), "#090909");
-  assert.equal(terminalBackground([undefined], theme), "#090909");
+  assert.equal(terminalBackground([cell(), cell(), cell(), cell()], theme), "#131314");
+  assert.equal(terminalBackground([undefined]), "#131314");
 });
 
 test("terminal padding resolves ANSI colors, grayscale, true color, and inverse backgrounds", () => {

@@ -1,7 +1,7 @@
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { handleShiftEnter } from "./terminalKeys";
-import { terminalBackground } from "./terminalBackground";
+import { terminalBackground, terminalDefaultBackground } from "./terminalBackground";
 import { createTerminalSuggestions } from "./terminalSuggestions";
 import { isTerminalIcon } from "./terminalIcons";
 import { createSmoothCaret } from "./smoothCaret";
@@ -21,11 +21,12 @@ export function createTerminalView(element: HTMLElement, handlers: {
   appChanged?: (icon: TerminalIconId) => void;
 }) {
   const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const themeBackground = getComputedStyle(element).getPropertyValue("--background").trim() || terminalDefaultBackground;
   const terminal = new Terminal({
     smoothScrollDuration: motion.matches ? 0 : 120,
     fontFamily: FONT_FAMILY, fontSize: 13, lineHeight: 1,
     cursorBlink: false, disableStdin: true,
-    theme: { background: "#090909", foreground: "#e5e5e5", cursor: "#e5e5e5", selectionBackground: "#404040" },
+    theme: { background: themeBackground, foreground: "#e5e5e5", cursor: "#e5e5e5", selectionBackground: "#404040" },
   });
   const updateMotion = () => { terminal.options.smoothScrollDuration = motion.matches ? 0 : 120; };
   motion.addEventListener("change", updateMotion);
