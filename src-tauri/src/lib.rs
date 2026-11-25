@@ -22,12 +22,12 @@ pub fn run() {
         .manage(terminal::Terminals::default())
         .manage(watcher::Watchers::default())
         .on_page_load(|webview, _| {
-            if let Err(error) = webview.set_zoom(1.1) {
+            if webview.label() != window::BROWSER_LABEL && let Err(error) = webview.set_zoom(1.1) {
                 eprintln!("Cannot set app zoom: {error}");
             }
         })
         .on_window_event(|window, event| {
-            if matches!(event, tauri::WindowEvent::Destroyed) {
+            if matches!(event, tauri::WindowEvent::Destroyed) && window.label() != window::BROWSER_LABEL {
                 #[cfg(windows)]
                 context_menu::remove(window.label());
 
@@ -74,6 +74,7 @@ pub fn run() {
             terminal::terminal_popout,
             terminal::terminal_open_external,
             window::window_new,
+            window::browser_open,
             files::list_directory,
             files::file_tree_action,
             watcher::watch_folder,

@@ -8,7 +8,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { animate } from "animejs";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowUpRightIcon, CommandLineIcon, File01Icon, Folder01Icon, FolderOpenIcon, GitBranchIcon, Menu01Icon, MultiplicationSignIcon, PlusSignIcon, SaveIcon, SidebarLeftIcon, TerminalIcon, WindowsNewIcon } from "@hugeicons/core-free-icons";
+import { ArrowUpRightIcon, CommandLineIcon, File01Icon, Folder01Icon, FolderOpenIcon, GitBranchIcon, Globe02Icon, Menu01Icon, MultiplicationSignIcon, PlusSignIcon, SaveIcon, SidebarLeftIcon, TerminalIcon, WindowsNewIcon } from "@hugeicons/core-free-icons";
 import { beyondDragThreshold, isOutsideWindow, type WindowBounds } from "./terminalDrag";
 import ResizeHandle from "./ResizeHandle";
 import FolderTree from "./FolderTree";
@@ -240,13 +240,15 @@ function App() {
   const dialogActive = useRef(false);
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [windowPending, setWindowPending] = useState(false);
-  const openNewWindow = useCallback(async () => {
+  const openNewWindow = useCallback(async (kind: "editor" | "browser") => {
     if (windowPending) return;
+    setDialogError(null);
     setWindowPending(true);
     try {
-      await invoke("window_new");
+      await invoke(kind === "browser" ? "browser_open" : "window_new");
     } catch (error) {
-      setDialogError(`Cannot open a new window: ${error instanceof Error ? error.message : String(error)}`);
+      const label = kind === "browser" ? "the browser" : "a new window";
+      setDialogError(`Cannot open ${label}: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setWindowPending(false);
     }
@@ -624,7 +626,7 @@ function App() {
                   <HugeiconsIcon icon={FolderOpenIcon} size={13} aria-hidden="true" focusable="false" />
                   Open Folder
                 </button>
-                <button role="menuitem" disabled={windowPending} onClick={() => { setFileMenuOpen(false); void openNewWindow(); }}>
+                <button role="menuitem" disabled={windowPending} onClick={() => { setFileMenuOpen(false); void openNewWindow("editor"); }}>
                   <HugeiconsIcon icon={WindowsNewIcon} size={13} aria-hidden="true" focusable="false" />
                   New Window
                 </button>
@@ -669,7 +671,7 @@ function App() {
           <div className="sidebar-content">
             {sidebarMode === "source" ? <SourceControl control={sourceControl} path={folderPath} /> : folderPath ? <FolderTree key={folderPath} path={folderPath} name={folderName ?? folderPath} activePath={filePath} onOpenFile={openFile} changeEntry={changeTreeEntry} creation={creation} onCreationDone={() => { setCreation(null); bumpGitStatus(); }} changedPaths={changedPaths} refreshToken={treeRefresh} onFilesChanged={bumpGitStatus} /> : <p className="sidebar-empty">No folder open.</p>}
           </div>
-          <div className="sidebar-switch" aria-label="Sidebar views">
+          <div className="sidebar-switch" aria-label="Sidebar controls">
             <button
               type="button"
               aria-pressed={sidebarMode === "files"}
@@ -687,6 +689,9 @@ function App() {
               onClick={() => setSidebarMode("source")}
             >
               <HugeiconsIcon icon={GitBranchIcon} size={12} aria-hidden="true" focusable="false" />
+            </button>
+            <button type="button" disabled={windowPending} aria-label="Open browser" title="Open browser" onClick={() => void openNewWindow("browser")}>
+              <HugeiconsIcon icon={Globe02Icon} size={12} aria-hidden="true" focusable="false" />
             </button>
           </div>
         </aside>

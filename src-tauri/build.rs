@@ -18,6 +18,7 @@ fn main() {
             "terminal_popout",
             "terminal_open_external",
             "window_new",
+            "browser_open",
             "restore_workspace",
             "save_workspace",
             "register_context_menu",

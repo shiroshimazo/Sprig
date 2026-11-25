@@ -44,6 +44,7 @@ body {
 .inline-create input { width: 100%; min-width: 0; padding: 4px 6px; background: var(--control); color: var(--text); border: 1px solid var(--text-muted); border-radius: 2px; font: inherit; }
 .inline-create input[aria-invalid="true"] { border-color: #fda4af; }
 .inline-create p { margin: 5px 0; font-size: 12px; color: #fda4af; overflow-wrap: anywhere; }
+.inline-rename { padding-inline-start: 28px; }
 
 .unsaved-dialog {
   width: min(440px, calc(100vw - 32px));
@@ -61,16 +62,6 @@ body {
 .unsaved-dialog button { padding: 8px 12px; border: 1px solid #555; border-radius: 4px; background: var(--control); color: var(--text); cursor: pointer; }
 
 .file-tree-dialog { overflow-wrap: anywhere; }
-.file-tree-dialog input {
-  display: block;
-  width: 100%;
-  margin: 6px 0 14px;
-  padding: 6px 8px;
-  border: 1px solid #555;
-  border-radius: 4px;
-  color: inherit;
-  background: var(--control);
-}
 .file-tree-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .file-tree-dialog button:disabled { opacity: 0.5; cursor: default; }
 .file-tree-action-error, .file-tree-action-status { padding: 0 8px; overflow-wrap: anywhere; }
@@ -197,7 +188,6 @@ p {
   align-items: stretch;
   gap: 0;
   padding: 0;
-  border-bottom: 0;
 }
 
 .toolbar--windows .toolbar-leading,
@@ -228,16 +218,6 @@ p {
 }
 
 .toolbar-leading--split + .toolbar-main {
-  border-left: 1px solid var(--border);
-}
-
-.toolbar--windows .toolbar-main,
-.toolbar--windows .toolbar-leading:not(.toolbar-leading--split) {
-  border-bottom: 1px solid var(--border);
-}
-
-.ide:has(.toolbar--windows) .resize-handle--vertical:not(:hover, :focus-visible) {
-  background: var(--background);
   border-left: 1px solid var(--border);
 }
 
@@ -350,14 +330,9 @@ p {
 }
 
 .resize-handle {
-  background: var(--border);
+  background: var(--background);
   touch-action: none;
   user-select: none;
-}
-
-.resize-handle:hover,
-.resize-handle:focus-visible {
-  background: var(--text-muted);
 }
 
 .resize-handle:focus-visible {
@@ -365,11 +340,20 @@ p {
 }
 
 .resize-handle--vertical {
-  cursor: col-resize;
+  position: relative;
+  border-inline-start: 1px solid var(--border);
+}
+
+.resize-handle--vertical::after {
+  position: absolute;
+  inset: calc(var(--workspace-header-height) - 1px) 0 auto;
+  height: 1px;
+  background: var(--border);
+  content: "";
 }
 
 .resize-handle--horizontal {
-  cursor: row-resize;
+  border-block-start: 1px solid var(--border);
 }
 
 [hidden] {
@@ -387,11 +371,13 @@ p {
 }
 
 .workspace {
+  --workspace-header-height: 45px;
   display: grid;
   min-height: 0;
 }
 
 .sidebar {
+  container-type: inline-size;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -450,6 +436,8 @@ p {
   flex-direction: column;
   width: 100%;
 }
+
+.workspace-file-tree { zoom: 85%; }
 
 .beui-item {
   position: relative;
@@ -647,6 +635,23 @@ p {
 .panel-header h2 {
   font-size: 13px;
   font-weight: 600;
+}
+
+.sidebar > .panel-header,
+.workbench > :is(.editor, .commit-history) > .panel-header {
+  height: var(--workspace-header-height);
+  padding-block: 8px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.sidebar .creation-actions { flex-shrink: 0; }
+
+@container (max-width: 200px) {
+  .sidebar > .panel-header { padding-inline: 4px; gap: 2px; }
+  .sidebar .creation-actions { gap: 2px; }
+  .sidebar .creation-actions button { font-size: 0; gap: 0; }
 }
 
 .cursor-position {

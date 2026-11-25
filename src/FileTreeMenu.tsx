@@ -13,22 +13,22 @@ type Action =
   | { type: "rename"; name: string }
   | { type: "duplicate" | "trash" | "open" | "reveal" };
 
-export default function FileTreeMenu({ root, target, dismiss, changeEntry, onChanged }: {
+export default function FileTreeMenu({ root, target, dismiss, changeEntry, onChanged, onRename }: {
   root: string;
   target: FileTreeMenuTarget | null;
   dismiss: (restoreFocus: boolean) => void;
   changeEntry: ChangeTreeEntry;
   onChanged: (paths: string[], removed?: string) => void;
+  onRename: (entry: FileEntry, submit: (name: string, onError: (message: string) => void) => Promise<boolean>) => void;
 }) {
   const [clipboard, setClipboard] = useState<{ path: string; cut: boolean } | null>(null);
-  const [prompt, setPrompt] = useState<{ type: "rename" | "trash"; entry: FileEntry } | null>(null);
-  const [name, setName] = useState("");
+  const [deleteEntry, setDeleteEntry] = useState<FileEntry | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const running = useRef(false);
   const mounted = useRef(false);
+  const callbacks = useRef({ changeEntry, onChanged });
   const dialog = useRef<HTMLDialogElement>(null);
-  const nameInput = useRef<HTMLInputElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
 
   useLayoutEffect(() => {
@@ -37,17 +37,18 @@ export default function FileTreeMenu({ root, target, dismiss, changeEntry, onCha
   }, []);
 
   useLayoutEffect(() => {
-    if (!prompt) return;
+    callbacks.current = { changeEntry, onChanged };
+  }, [changeEntry, onChanged]);
+
+  useLayoutEffect(() => {
+    if (!deleteEntry) return;
     const element = dialog.current;
     element?.showModal();
-    if (prompt.type === "rename") {
-      nameInput.current?.focus();
-      nameInput.current?.select();
-    } else cancel.current?.focus();
+    cancel.current?.focus();
     return () => element?.close();
-  }, [prompt]);
+  }, [deleteEntry]);
 
-  async function run(operation: () => Promise<boolean>) {
+  async function run(operation: () => Promise<boolean>, onError: (message: string) => void = setError) {
     if (running.current) return false;
     running.current = true;
     setBusy(true);
@@ -55,7 +56,7 @@ export default function FileTreeMenu({ root, target, dismiss, changeEntry, onCha
     try {
       return await operation();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      onError(cause instanceof Error ? cause.message : String(cause));
       return false;
     } finally {
       running.current = false;
@@ -63,26 +64,20 @@ export default function FileTreeMenu({ root, target, dismiss, changeEntry, onCha
     }
   }
 
-  function perform(path: string, action: Action) {
+  function perform(path: string, action: Action, onError?: (message: string) => void) {
     return run(async () => {
       const mutatesSource = action.type === "rename" || action.type === "trash" || action.type === "move";
       const invokeAction = () => invoke<boolean>("file_tree_action", { root, path, action });
-      const changed = mutatesSource ? await changeEntry(path, invokeAction) : await invokeAction();
+      const changed = mutatesSource ? await callbacks.current.changeEntry(path, invokeAction) : await invokeAction();
       if (changed === null) return false;
       if (changed && mounted.current) {
-        onChanged("folder" in action ? [path, action.folder] : [path], mutatesSource ? path : undefined);
+        callbacks.current.onChanged("folder" in action ? [path, action.folder] : [path], mutatesSource ? path : undefined);
       }
-      if (action.type === "move" || (changed && mutatesSource && clipboard && isInsideFolder(path, clipboard.path))) {
-        setClipboard(null);
+      if (action.type === "move" || (changed && mutatesSource)) {
+        setClipboard((current) => current && (action.type === "move" || isInsideFolder(path, current.path)) ? null : current);
       }
       return true;
-    });
-  }
-
-  function ask(type: "rename" | "trash", entry: FileEntry) {
-    setError("");
-    setName(entry.name);
-    setPrompt({ type, entry });
+    }, onError);
   }
 
   const items: ContextMenuItem[] = [];
@@ -104,7 +99,10 @@ export default function FileTreeMenu({ root, target, dismiss, changeEntry, onCha
     }
     if (canChange) {
       item("Duplicate", CopyPlusIcon, () => void perform(path, { type: "duplicate" }));
-      item("Rename", Edit01Icon, () => ask("rename", entry), { separator: true });
+      item("Rename", Edit01Icon, () => {
+        setError("");
+        onRename(entry, (name, reportError) => perform(path, { type: "rename", name }, reportError));
+      }, { separator: true });
     }
     item("Copy Path", Copy01Icon, () => void run(async () => {
       await navigator.clipboard.writeText(stripVerbatimPrefix(path));
@@ -114,7 +112,10 @@ export default function FileTreeMenu({ root, target, dismiss, changeEntry, onCha
       item("Open with External App", LinkSquare01Icon, () => void perform(path, { type: "open" }), { separator: true });
       item("Show in File Manager", FolderOpenIcon, () => void perform(path, { type: "reveal" }));
     }
-    if (canChange) item("Delete…", Delete02Icon, () => ask("trash", entry), { separator: true, destructive: true });
+    if (canChange) item("Delete…", Delete02Icon, () => {
+      setError("");
+      setDeleteEntry(entry);
+    }, { separator: true, destructive: true });
   }
 
   return <>
@@ -123,28 +124,22 @@ export default function FileTreeMenu({ root, target, dismiss, changeEntry, onCha
       close={(_, restoreFocus = true) => dismiss(restoreFocus)}
       label={`Actions for ${target.entry.name}`}
     />}
-    {error && !prompt && <p className="file-tree-action-error" role="alert">{error}</p>}
-    {busy && !prompt && <p className="file-tree-action-status" role="status">Working…</p>}
-    {prompt && <dialog ref={dialog} className="unsaved-dialog file-tree-dialog" aria-labelledby="tree-action-title" onCancel={(event) => {
+    {error && !deleteEntry && <p className="file-tree-action-error" role="alert">{error}</p>}
+    {busy && !deleteEntry && <p className="file-tree-action-status" role="status">Working…</p>}
+    {deleteEntry && <dialog ref={dialog} className="unsaved-dialog file-tree-dialog" aria-labelledby="tree-action-title" onCancel={(event) => {
       event.preventDefault();
-      if (!running.current) { setPrompt(null); setError(""); }
+      if (!running.current) { setDeleteEntry(null); setError(""); }
     }}>
       <form onSubmit={async (event) => {
         event.preventDefault();
-        if (prompt.type === "rename" && name === prompt.entry.name) {
-          setPrompt(null);
-          return;
-        }
-        const action = prompt.type === "rename" ? { type: "rename" as const, name } : { type: "trash" as const };
-        if (await perform(prompt.entry.path, action)) setPrompt(null);
+        if (await perform(deleteEntry.path, { type: "trash" })) setDeleteEntry(null);
       }}>
-        <h2 id="tree-action-title">{prompt.type === "rename" ? "Rename item" : "Move to Trash?"}</h2>
-        {prompt.type === "rename" ? <label>New name<input ref={nameInput} value={name} onChange={(event) => setName(event.target.value)} required disabled={busy} /></label>
-          : <p>{prompt.entry.name}</p>}
+        <h2 id="tree-action-title">Move to Trash?</h2>
+        <p>{deleteEntry.name}</p>
         {error && <p className="file-tree-action-error" role="alert">{error}</p>}
         <div className="file-tree-dialog-actions">
-          <button type="button" ref={cancel} disabled={busy} onClick={() => { setPrompt(null); setError(""); }}>Cancel</button>
-          <button type="submit" disabled={busy}>{busy ? "Working…" : prompt.type === "rename" ? "Rename" : "Move to Trash"}</button>
+          <button type="button" ref={cancel} disabled={busy} onClick={() => { setDeleteEntry(null); setError(""); }}>Cancel</button>
+          <button type="submit" disabled={busy}>{busy ? "Working…" : "Move to Trash"}</button>
         </div>
       </form>
     </dialog>}

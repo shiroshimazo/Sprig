@@ -34,6 +34,7 @@
     "allow-restore-workspace",
     "allow-save-workspace",
     "allow-window-new",
+    "allow-browser-open",
     "allow-watch-folder",
     "allow-unwatch-folder"
   ]

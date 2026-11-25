@@ -61,6 +61,11 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
   const debounce = useRef<number | null>(null);
   const [draft, setDraft] = useState<{ parent: string; kind: "file" | "folder" } | null>(null);
   const [menu, setMenu] = useState<FileTreeMenuTarget | null>(null);
+  const [rename, setRename] = useState<{ path: string; submit: (name: string, onError: (message: string) => void) => Promise<boolean> } | null>(null);
+  const [renameName, setRenameName] = useState("");
+  const [renameError, setRenameError] = useState("");
+  const [renaming, setRenaming] = useState(false);
+  const renameInput = useRef<HTMLInputElement>(null);
   const [entryName, setEntryName] = useState("");
   const [creationError, setCreationError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -261,6 +266,50 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
     }
   }, [load, onOpenFile, path]);
 
+  useEffect(() => {
+    if (!rename) return;
+    renameInput.current?.focus();
+    renameInput.current?.select();
+  }, [rename]);
+
+  function finishRename(tree: Element | null, changed: boolean) {
+    setRename(null);
+    requestAnimationFrame(() => {
+      if (document.activeElement !== document.body) return;
+      const row = changed ? 'button[role="treeitem"]' : 'button[role="treeitem"][tabindex="0"]';
+      tree?.querySelector<HTMLButtonElement>(row)?.focus({ preventScroll: true });
+    });
+  }
+
+  function renameField(entry: FileEntry) {
+    if (rename?.path !== entry.path) return null;
+    return <form className="inline-create inline-rename" onSubmit={async (event) => {
+      event.preventDefault();
+      if (renaming) return;
+      const tree = event.currentTarget.closest('[role="tree"]');
+      if (renameName === entry.name) { finishRename(tree, false); return; }
+      setRenameError("");
+      setRenaming(true);
+      try {
+        if (await rename.submit(renameName, setRenameError)) finishRename(tree, true);
+      } finally {
+        setRenaming(false);
+      }
+    }} onKeyDown={(event) => {
+      event.stopPropagation();
+      if (event.key === "Escape" && !renaming) {
+        event.preventDefault();
+        finishRename(event.currentTarget.closest('[role="tree"]'), false);
+      }
+    }}>
+      <input ref={renameInput} aria-label="New name" aria-invalid={!!renameError}
+        aria-describedby={renameError ? "inline-rename-error" : undefined}
+        value={renameName} onChange={(event) => { setRenameName(event.target.value); setRenameError(""); }}
+        required readOnly={renaming} autoComplete="off" spellCheck={false} />
+      {renameError && <p id="inline-rename-error" role="alert">{renameError}</p>}
+    </form>;
+  }
+
   const renderEntry = (entry: FileEntry): ReactNode => {
     if (entry.isDirectory && !entry.isSymlink) {
       return renderFolder(entry);
@@ -270,6 +319,7 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
       <FileTreeFile
         key={entry.path}
         value={entry.path}
+        content={renameField(entry)}
         name={entry.name + (entry.isSymlink ? " (link)" : "")}
         icon={<FileTypeIcon name={entry.name} />}
         title={changedEntry ? `${entry.path} — not committed yet` : entry.path}
@@ -304,7 +354,7 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
     }
     const changedFolder = !isRoot && isChanged(folderPath);
     return (
-      <FileTreeFolder key={folderPath} value={folderPath} name={folderName} title={changedFolder ? `${folderPath} — not committed yet` : folderPath} className={changedFolder ? "file-tree-row--changed" : undefined}
+      <FileTreeFolder key={folderPath} value={folderPath} name={folderName} content={renameField(entry)} title={changedFolder ? `${folderPath} — not committed yet` : folderPath} className={changedFolder ? "file-tree-row--changed" : undefined}
         onItemMenu={(position) => setMenu({ ...position, entry })}>
         {draft?.parent === folderPath && <FileTreeFile value={`${folderPath}::create`} name={`New ${draft.kind}`} content={
           <form className="inline-create" onSubmit={(event) => { event.preventDefault(); void submitCreation(); }} onKeyDown={(event) => {
@@ -323,6 +373,7 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
   return <>
     <FileTree
       ariaLabel="Folder tree"
+      className="workspace-file-tree"
       value={activePath}
       onValueChange={handleValueChange}
       expandedIds={expandedIds}
@@ -334,6 +385,10 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
     <FileTreeMenu root={path} target={menu} dismiss={(restoreFocus) => {
       if (restoreFocus) menu?.opener.focus({ preventScroll: true });
       setMenu(null);
-    }} changeEntry={changeEntry} onChanged={entriesChanged} />
+    }} changeEntry={changeEntry} onChanged={entriesChanged} onRename={(entry, submit) => {
+      setRename({ path: entry.path, submit });
+      setRenameName(entry.name);
+      setRenameError("");
+    }} />
   </>;
 }

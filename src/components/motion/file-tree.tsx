@@ -36,6 +36,7 @@ type FileTreeItem = {
 };
 
 export interface FileTreeFolderProps {
+  content?: ReactNode;
   value: string;
   name: string;
   icon?: ReactNode;
@@ -144,6 +145,7 @@ function itemsFromChildren(children: ReactNode): FileTreeItem[] {
     if (child.type === FileTreeFolder) {
       const props = child.props as FileTreeFolderProps;
       items.push({
+        content: props.content,
         value: props.value,
         name: props.name,
         type: "folder",
@@ -353,7 +355,7 @@ export function FileTree({
           const isSelected = selectedId === row.item.value;
 
           if (row.item.content) return (
-            <div key={row.item.value} role="treeitem" aria-label={row.item.name} aria-level={row.depth + 1} style={{ paddingLeft: 8 + row.depth * indent }}>
+            <div key={row.item.value} role="treeitem" aria-label={row.item.name} aria-level={row.depth + 1} aria-expanded={isFolder ? isOpen : undefined} style={{ paddingLeft: 8 + row.depth * indent }}>
               {row.item.content}
             </div>
           );
