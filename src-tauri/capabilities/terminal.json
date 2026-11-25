@@ -5,6 +5,8 @@
   "windows": ["detached-terminals"],
   "permissions": [
     "core:event:default",
+    "allow-register-context-menu",
+    "allow-complete-context-menu",
     "core:window:allow-show",
     "core:window:allow-close",
     "core:window:allow-minimize",

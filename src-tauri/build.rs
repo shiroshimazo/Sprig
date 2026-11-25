@@ -19,6 +19,8 @@ fn main() {
             "window_new",
             "restore_workspace",
             "save_workspace",
+            "register_context_menu",
+            "complete_context_menu",
         ]),
     ))
     .expect("failed to build Tauri permissions");

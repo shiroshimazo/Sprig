@@ -1,3 +1,5 @@
+#[cfg(windows)]
+mod context_menu;
 mod files;
 mod git;
 mod terminal;
@@ -18,6 +20,9 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if matches!(event, tauri::WindowEvent::Destroyed) {
+                #[cfg(windows)]
+                context_menu::remove(window.label());
+
                 // A closed window leaves no watcher behind, but the other
                 // windows keep the ones they started.
                 watcher::stop_owner(window.app_handle(), window.label());
@@ -43,6 +48,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
+            #[cfg(windows)]
+            context_menu::register_context_menu,
+            #[cfg(windows)]
+            context_menu::complete_context_menu,
             git::git_snapshot,
             git::git_action,
             git::git_status,

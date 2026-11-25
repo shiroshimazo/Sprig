@@ -201,7 +201,7 @@ export default function DetachedTerminal() {
   return (
     <main className="detached-terminal" aria-label="Detached terminals">
       <header className={windows ? "toolbar detached-toolbar toolbar--windows" : "toolbar detached-toolbar"}>
-        {!windows && <WindowControls windows={windows} />}
+        <WindowControls />
         <div
           className="toolbar-spacer"
           data-tauri-drag-region
@@ -209,7 +209,6 @@ export default function DetachedTerminal() {
           onDoubleClick={() => { if (isTauri()) void getCurrentWindow().toggleMaximize().catch(() => {}); }}
         />
         <span className="detached-terminal-name" title={headerName}>{headerName}</span>
-        {windows && <WindowControls windows={windows} />}
       </header>
       <h2 className="sr-only">Detached terminals</h2>
       {error && <p role="alert" className="dialog-error">{error}</p>}

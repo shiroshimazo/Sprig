@@ -10,6 +10,7 @@ import "@fontsource/cascadia-code/400-italic.css";
 import "@fontsource/cascadia-code/600.css";
 import "@fontsource/cascadia-code/600-italic.css";
 import App from "./App";
+import ContextMenu from "./ContextMenu";
 import DetachedTerminal from "./DetachedTerminal";
 import { installInputCarets } from "./smoothCaret";
 import "./smoothCaret.css";
@@ -29,6 +30,7 @@ void terminalFont.then(() => {
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <React.StrictMode>
       {detached ? <DetachedTerminal /> : <App />}
+      <ContextMenu />
     </React.StrictMode>,
   );
 });

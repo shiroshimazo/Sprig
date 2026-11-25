@@ -28,15 +28,7 @@ function ZoomGlyph() {
   );
 }
 
-function CaptionGlyph({ path }: { path: string }) {
-  return (
-    <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true" focusable="false">
-      <path d={path} fill="none" stroke="currentColor" />
-    </svg>
-  );
-}
-
-export default function WindowControls({ windows }: { windows: boolean }) {
+export default function WindowControls() {
   const [isMaximized, setIsMaximized] = useState(false);
 
   useEffect(() => {
@@ -55,41 +47,36 @@ export default function WindowControls({ windows }: { windows: boolean }) {
   if (!isTauri()) return null;
   const appWindow = getCurrentWindow();
 
-  const close = (
-    <button
-      type="button"
-      className={windows ? "caption-button caption-button--close" : "traffic traffic--close"}
-      aria-label="Close window"
-      title="Close"
-      onClick={() => void appWindow.close().catch(() => {})}
-    >
-      {windows ? <CaptionGlyph path="M2 2L10 10M10 2L2 10" /> : <CloseGlyph />}
-    </button>
-  );
-
   return (
-    <div className={windows ? "window-controls window-controls--windows" : "window-controls"} aria-label="Window controls">
-      {!windows && close}
+    <div className="window-controls" aria-label="Window controls">
       <button
         type="button"
-        className={windows ? "caption-button" : "traffic traffic--minimize"}
+        className="traffic traffic--close"
+        aria-label="Close window"
+        title="Close"
+        onClick={() => void appWindow.close().catch(() => {})}
+      >
+        <CloseGlyph />
+      </button>
+      <button
+        type="button"
+        className="traffic traffic--minimize"
         aria-label="Minimize window"
         title="Minimize"
         onClick={() => void appWindow.minimize().catch(() => {})}
       >
-        {windows ? <CaptionGlyph path="M1 6H11" /> : <MinimizeGlyph />}
+        <MinimizeGlyph />
       </button>
       <button
         type="button"
-        className={windows ? "caption-button" : "traffic traffic--zoom"}
+        className="traffic traffic--zoom"
         aria-label={isMaximized ? "Restore window" : "Maximize window"}
         aria-pressed={isMaximized}
-        title={isMaximized ? "Restore" : windows ? "Maximize" : "Zoom"}
+        title={isMaximized ? "Restore" : "Zoom"}
         onClick={() => void appWindow.toggleMaximize().catch(() => {})}
       >
-        {windows ? <CaptionGlyph path={isMaximized ? "M1.5 3.5H8.5V10.5H1.5ZM3.5 3.5V1.5H10.5V8.5H8.5" : "M1.5 1.5H10.5V10.5H1.5Z"} /> : <ZoomGlyph />}
+        <ZoomGlyph />
       </button>
-      {windows && close}
     </div>
   );
 }

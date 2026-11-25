@@ -38,7 +38,7 @@ body {
 
 .creation-actions { display: flex; gap: 6px; }
 .creation-actions button { display: inline-flex; align-items: center; gap: 3px; padding: 4px; border: 0; color: var(--text); background: transparent; cursor: pointer; }
-.creation-actions button:hover { background: var(--control); }
+.creation-actions button:not(:disabled):hover { color: #fff; }
 .creation-actions button:disabled { opacity: .4; cursor: default; }
 /* Icon-only action: 13px icon + 4px padding each side keeps a square hit area. */
 .sidebar-refresh { width: 21px; align-self: center; justify-content: center; }
@@ -112,7 +112,7 @@ p {
 }
 
 .file-actions button:not(:disabled):hover {
-  background: #303030;
+  color: #fff;
 }
 
 .file-actions { position: relative; }
@@ -175,7 +175,6 @@ p {
 
 .toolbar--windows {
   min-height: 44px;
-  padding: 0;
 }
 
 .ide .toolbar--windows {
@@ -183,6 +182,7 @@ p {
   grid-template-columns: auto minmax(0, 1fr);
   align-items: stretch;
   gap: 0;
+  padding: 0;
   border-bottom: 0;
 }
 
@@ -194,9 +194,23 @@ p {
 }
 
 .toolbar--windows .toolbar-leading {
-  justify-content: space-between;
-  gap: 4px;
-  padding: 0 8px;
+  flex-wrap: wrap;
+  align-content: start;
+  gap: 4px 8px;
+  padding: 9px 8px 4px;
+}
+
+.toolbar--windows .toolbar-leading > .window-controls {
+  align-self: start;
+  margin-block-start: 7px;
+}
+
+.toolbar--windows .toolbar-leading > .panel-actions {
+  margin-inline-start: auto;
+}
+
+.toolbar--windows .toolbar-main {
+  padding-inline-end: 8px;
 }
 
 .toolbar-leading--split + .toolbar-main {
@@ -221,7 +235,6 @@ p {
   gap: 6px;
   border: 0;
   border-radius: 3px;
-  background: transparent;
 }
 
 .window-controls {
@@ -229,37 +242,6 @@ p {
   align-items: center;
   gap: 6px;
   padding-right: 2px;
-}
-
-.window-controls--windows {
-  align-self: stretch;
-  align-items: stretch;
-  gap: 0;
-  padding: 0;
-  margin-left: 4px;
-}
-
-.caption-button {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-}
-
-.caption-button:hover {
-  background: #303030;
-}
-
-.caption-button--close:hover {
-  background: #c42b1c;
-}
-
-.caption-button:focus-visible {
-  outline-offset: -2px;
 }
 
 .traffic {
@@ -329,7 +311,7 @@ p {
   border: 1px solid #333333;
   border-radius: 4px;
   color: var(--text-muted);
-  background: var(--control);
+  background: transparent;
 }
 
 .panel-actions button {
@@ -337,13 +319,12 @@ p {
   cursor: pointer;
 }
 
-.panel-actions button:hover {
-  background: #303030;
-}
-
 .panel-actions button[aria-expanded="false"] {
   color: var(--text-muted);
-  background: transparent;
+}
+
+.panel-actions button:hover {
+  color: #fff;
 }
 
 .toolbar button svg {
@@ -431,18 +412,16 @@ p {
   padding: 0;
   border: 1px solid var(--border);
   border-radius: 4px;
-  background: var(--control);
+  background: transparent;
   color: var(--text-muted);
   cursor: pointer;
 }
 
 .sidebar-switch button:hover {
-  background: #303030;
   color: var(--text);
 }
 
 .sidebar-switch button[aria-pressed="true"] {
-  background: #303030;
   border-color: #666;
   color: var(--text);
 }
@@ -811,14 +790,13 @@ p {
   padding: 0;
   border: 0;
   background: transparent;
-  color: inherit;
+  color: var(--text-muted);
   cursor: pointer;
   border-radius: 0 4px 4px 0;
 }
 
 .terminal-tab-close:hover {
   color: var(--text);
-  background: #303030;
 }
 
 .terminal-tab-close:focus-visible,
@@ -843,7 +821,6 @@ p {
 
 .terminal-tab-add:hover:not(:disabled) {
   color: var(--text);
-  background: var(--control);
 }
 
 .terminal-tab-add:disabled {
@@ -1037,6 +1014,10 @@ body.terminal-dragging * {
   outline-offset: -2px;
 }
 
+.file-tab-select > svg {
+  flex-shrink: 0;
+}
+
 .file-tab-name {
   overflow: hidden;
   white-space: nowrap;
@@ -1060,14 +1041,13 @@ body.terminal-dragging * {
   padding: 0;
   border: 0;
   background: transparent;
-  color: inherit;
+  color: var(--text-muted);
   cursor: pointer;
   border-radius: 0 4px 4px 0;
 }
 
 .file-tab-close:hover {
   color: var(--text);
-  background: #303030;
 }
 
 .file-tab-close:focus-visible {

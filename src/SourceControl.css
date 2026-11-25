@@ -1,5 +1,7 @@
 .source-control button { border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; background: var(--control); color: var(--text); cursor: pointer; }
 .source-control button:not(:disabled):hover { background: #303030; }
+.source-control li button { background: transparent; color: var(--text-muted); }
+.source-control li button:not(:disabled):hover { background: transparent; color: var(--text); }
 .source-control button:focus-visible, .source-control textarea:focus-visible { outline: 2px solid #87b5ff; outline-offset: 2px; }
 .source-control { padding: 10px 6px; }
 .source-control button:disabled { opacity: .45; cursor: default; }

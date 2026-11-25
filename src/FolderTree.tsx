@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { FileTree, FileTreeFile, FileTreeFolder } from "./components/motion/file-tree";
+import FileTypeIcon from "./FileTypeIcon";
 import { isInsideFolder } from "./filePaths";
 
 type FileEntry = {
@@ -248,6 +249,7 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
         key={entry.path}
         value={entry.path}
         name={entry.name + (entry.isSymlink ? " (link)" : "")}
+        icon={<FileTypeIcon name={entry.name} />}
         title={changedEntry ? `${entry.path} — not committed yet` : entry.path}
         className={changedEntry ? "file-tree-row--changed" : undefined}
       />

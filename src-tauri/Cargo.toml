@@ -28,6 +28,9 @@ portable-pty = "0.9.0"
 tempfile = "3.27.0"
 notify = "8.2.2"
 
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.39"
+windows-core = "0.62"
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]

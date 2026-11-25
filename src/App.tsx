@@ -12,6 +12,7 @@ import { ArrowUpRightIcon, CommandLineIcon, File01Icon, Folder01Icon, FolderOpen
 import { beyondDragThreshold, isOutsideWindow, type WindowBounds } from "./terminalDrag";
 import ResizeHandle from "./ResizeHandle";
 import FolderTree from "./FolderTree";
+import FileTypeIcon from "./FileTypeIcon";
 import CodeEditor from "./CodeEditor";
 import TerminalPanel from "./TerminalPanel";
 import type { TerminalPanelHandle } from "./TerminalPanel";
@@ -542,8 +543,8 @@ function App() {
         className={windows ? "toolbar toolbar--windows" : "toolbar"}
         style={windows && sidebarVisible ? { gridTemplateColumns: `${sidebarWidth}% minmax(0, 1fr)` } : undefined}
       >
-        {!windows && <WindowControls windows={windows} />}
         <div className={windows && sidebarVisible ? "toolbar-leading toolbar-leading--split" : "toolbar-leading"}>
+          <WindowControls />
           <div className="file-actions" aria-label="File actions" ref={fileMenuRef}>
             <button
               ref={fileMenuButton}
@@ -607,7 +608,6 @@ function App() {
               <HugeiconsIcon icon={TerminalIcon} size={13} aria-hidden="true" focusable="false" />
             </button>
           </div>
-          {windows && <WindowControls windows={windows} />}
         </div>
       </header>
 
@@ -689,6 +689,7 @@ function App() {
                           }}
                         >
                           {dirty && <span className="file-tab-dot" role="img" aria-label="Unsaved changes" />}
+                          <FileTypeIcon name={name} />
                           <span className="file-tab-name">{name}</span>
                         </button>
                         <button className="file-tab-close" aria-label={`Close ${name}`} title={`Close ${name}`} onClick={() => void closeTab(tabPath)}>
