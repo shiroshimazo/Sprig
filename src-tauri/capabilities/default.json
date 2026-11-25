@@ -30,6 +30,7 @@
     "allow-terminal-popout",
     "allow-terminal-open-external",
     "allow-list-directory",
+    "allow-file-tree-action",
     "allow-restore-workspace",
     "allow-save-workspace",
     "allow-window-new",

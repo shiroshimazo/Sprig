@@ -75,6 +75,7 @@ pub fn run() {
             terminal::terminal_open_external,
             window::window_new,
             files::list_directory,
+            files::file_tree_action,
             watcher::watch_folder,
             watcher::unwatch_folder,
             workspace::restore_workspace,

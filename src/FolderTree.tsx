@@ -3,9 +3,10 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { FileTree, FileTreeFile, FileTreeFolder } from "./components/motion/file-tree";
 import FileTypeIcon from "./FileTypeIcon";
+import FileTreeMenu, { type ChangeTreeEntry, type FileTreeMenuTarget } from "./FileTreeMenu";
 import { isInsideFolder } from "./filePaths";
 
-type FileEntry = {
+export type FileEntry = {
   name: string;
   path: string;
   isDirectory: boolean;
@@ -23,6 +24,7 @@ type FolderTreeProps = {
   name?: string;
   activePath: string | null;
   onOpenFile: (path: string) => void;
+  changeEntry: ChangeTreeEntry;
   creation: { kind: "file" | "folder" } | null;
   onCreationDone: () => void;
   changedPaths?: string[];
@@ -39,7 +41,7 @@ const EMPTY_SUFFIX = "::empty";
 // waits for the burst to settle before it re-reads the folders.
 const RELOAD_DEBOUNCE_MS = 120;
 
-export default function FolderTree({ path, name = path, activePath, onOpenFile, creation, onCreationDone, changedPaths = [], refreshToken, onFilesChanged }: FolderTreeProps) {
+export default function FolderTree({ path, name = path, activePath, onOpenFile, changeEntry, creation, onCreationDone, changedPaths = [], refreshToken, onFilesChanged }: FolderTreeProps) {
   const cache = useRef(new Map<string, CacheEntry>());
   const pending = useRef(new Set<string>());
   const reload = useRef(new Set<string>());
@@ -58,6 +60,7 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
   const queued = useRef(new Set<string>());
   const debounce = useRef<number | null>(null);
   const [draft, setDraft] = useState<{ parent: string; kind: "file" | "folder" } | null>(null);
+  const [menu, setMenu] = useState<FileTreeMenuTarget | null>(null);
   const [entryName, setEntryName] = useState("");
   const [creationError, setCreationError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -83,16 +86,16 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
     if (pending.current.has(folder)) return;
     pending.current.add(folder);
     const previous = cache.current.get(folder);
-    cache.current.set(folder, { entries: previous?.entries, loading: true, error: undefined });
+    const loading = { entries: previous?.entries, loading: true };
+    cache.current.set(folder, loading);
     bump();
     try {
       const entries = await invoke<FileEntry[]>("list_directory", { path: folder });
-      cache.current.set(folder, { entries, loading: false });
+      if (cache.current.get(folder) === loading) cache.current.set(folder, { entries, loading: false });
     } catch (cause) {
-      cache.current.set(folder, {
-        error: cause instanceof Error ? cause.message : String(cause),
-        loading: false,
-      });
+      if (cache.current.get(folder) === loading) {
+        cache.current.set(folder, { error: cause instanceof Error ? cause.message : String(cause), loading: false });
+      }
     } finally {
       pending.current.delete(folder);
       bump();
@@ -149,6 +152,25 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
     if (reloadAll) for (const folder of loaded) affected.add(folder);
     queueReload(affected);
   }, [queueReload]);
+
+  function entriesChanged(paths: string[], removed?: string) {
+    if (removed) {
+      const affected = (entry: string) => isInsideFolder(removed, entry);
+      for (const folder of cache.current.keys()) {
+        if (!affected(folder)) continue;
+        cache.current.delete(folder);
+        queued.current.delete(folder);
+        reload.current.delete(folder);
+      }
+      setExpandedIds((ids) => ids.filter((id) => !affected(id)));
+      if (affected(selectedFolder.current)) selectedFolder.current = path;
+      if (draft && affected(draft.parent)) {
+        setDraft(null);
+        onCreationDone();
+      }
+    }
+    handleDiskChange(paths);
+  }
 
   // Watch the workspace so changes on disk reach the tree. A watcher that
   // fails must never break the tree, so its errors are ignored.
@@ -241,7 +263,7 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
 
   const renderEntry = (entry: FileEntry): ReactNode => {
     if (entry.isDirectory && !entry.isSymlink) {
-      return renderFolder(entry.path, entry.name);
+      return renderFolder(entry);
     }
     const changedEntry = isChanged(entry.path);
     return (
@@ -252,11 +274,13 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
         icon={<FileTypeIcon name={entry.name} />}
         title={changedEntry ? `${entry.path} — not committed yet` : entry.path}
         className={changedEntry ? "file-tree-row--changed" : undefined}
+        onItemMenu={(position) => setMenu({ ...position, entry })}
       />
     );
   };
 
-  const renderFolder = (folderPath: string, folderName: string, isRoot = false): ReactNode => {
+  const renderFolder = (entry: FileEntry, isRoot = false): ReactNode => {
+    const { path: folderPath, name: folderName } = entry;
     const cached = cache.current.get(folderPath);
     let children: ReactNode;
     if (cached?.entries) {
@@ -280,7 +304,8 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
     }
     const changedFolder = !isRoot && isChanged(folderPath);
     return (
-      <FileTreeFolder key={folderPath} value={folderPath} name={folderName} title={changedFolder ? `${folderPath} — not committed yet` : folderPath} className={changedFolder ? "file-tree-row--changed" : undefined}>
+      <FileTreeFolder key={folderPath} value={folderPath} name={folderName} title={changedFolder ? `${folderPath} — not committed yet` : folderPath} className={changedFolder ? "file-tree-row--changed" : undefined}
+        onItemMenu={(position) => setMenu({ ...position, entry })}>
         {draft?.parent === folderPath && <FileTreeFile value={`${folderPath}::create`} name={`New ${draft.kind}`} content={
           <form className="inline-create" onSubmit={(event) => { event.preventDefault(); void submitCreation(); }} onKeyDown={(event) => {
             event.stopPropagation();
@@ -295,7 +320,7 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
     );
   };
 
-  return (
+  return <>
     <FileTree
       ariaLabel="Folder tree"
       value={activePath}
@@ -304,7 +329,11 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
       onExpandedChange={handleExpand}
       indent={18}
     >
-      {renderFolder(path, name, true)}
+      {renderFolder({ path, name, isDirectory: true, isSymlink: false }, true)}
     </FileTree>
-  );
+    <FileTreeMenu root={path} target={menu} dismiss={(restoreFocus) => {
+      if (restoreFocus) menu?.opener.focus({ preventScroll: true });
+      setMenu(null);
+    }} changeEntry={changeEntry} onChanged={entriesChanged} />
+  </>;
 }

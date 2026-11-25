@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     fs,
     io::{Read, Write},
@@ -229,9 +229,249 @@ pub async fn list_directory(
         .map_err(|e| e.to_string())?
 }
 
+#[derive(Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum FileTreeAction {
+    Copy { folder: PathBuf },
+    Move { folder: PathBuf },
+    Duplicate,
+    Rename { name: String },
+    Trash,
+    Open,
+    Reveal,
+}
+
+fn workspace_entry(app: &tauri::AppHandle, root: &Path, path: &Path) -> Result<PathBuf, String> {
+    let resolved = authorized_path(app, path)?;
+    if !resolved.starts_with(root) {
+        return Err("Choose an item within the opened folder.".into());
+    }
+    let metadata = fs::symlink_metadata(path).map_err(|e| format!("Cannot inspect item: {e}"))?;
+    if metadata.is_symlink() {
+        return Err("This action is unavailable for links.".into());
+    }
+    Ok(resolved)
+}
+
+fn copy_entry(source: &Path, destination: &Path) -> std::io::Result<()> {
+    let metadata = fs::symlink_metadata(source)?;
+    if metadata.is_symlink() || !(metadata.is_file() || metadata.is_dir()) {
+        return Err(std::io::Error::other("Cannot copy links or special files."));
+    }
+    if metadata.is_dir() {
+        fs::create_dir(destination)?;
+        for child in fs::read_dir(source)? {
+            let child = child?;
+            copy_entry(&child.path(), &destination.join(child.file_name()))?;
+        }
+    } else {
+        fs::copy(source, destination)?;
+    }
+    Ok(())
+}
+
+fn copy_to_folder(
+    source: &Path,
+    folder: &Path,
+    duplicate: bool,
+    allowed: impl Fn(&Path) -> bool,
+) -> std::io::Result<()> {
+    use std::io::{Error, ErrorKind};
+
+    if folder.starts_with(source) {
+        return Err(Error::other("Cannot copy a folder into itself."));
+    }
+    let name = source
+        .file_name()
+        .ok_or_else(|| Error::other("Item has no name."))?;
+    // Publish the copy only once it is complete and the final name is available.
+    let staging = tempfile::Builder::new()
+        .prefix(".sprig-copy-")
+        .tempdir_in(folder)?;
+    let staged = staging.path().join("item");
+    copy_entry(source, &staged)?;
+    let publish = |destination: PathBuf| {
+        if !allowed(&destination) {
+            return Err(Error::new(
+                ErrorKind::PermissionDenied,
+                "Destination is outside the opened folder.",
+            ));
+        }
+        renamore::rename_exclusive(&staged, destination)
+    };
+    if !duplicate {
+        return publish(folder.join(name));
+    }
+
+    let (stem, extension) = if source.is_dir() {
+        (name, None)
+    } else {
+        (source.file_stem().unwrap_or(name), source.extension())
+    };
+    let mut number = 1;
+    loop {
+        let mut candidate = stem.to_os_string();
+        if number == 1 {
+            candidate.push(" copy");
+        } else {
+            candidate.push(format!(" copy {number}"));
+        }
+        if let Some(extension) = extension {
+            candidate.push(".");
+            candidate.push(extension);
+        }
+        match publish(folder.join(candidate)) {
+            Err(error) if error.kind() == ErrorKind::AlreadyExists => number += 1,
+            result => return result,
+        }
+    }
+}
+
+fn file_tree_destination(
+    app: &tauri::AppHandle,
+    root: &Path,
+    folder: &Path,
+    name: &std::ffi::OsStr,
+) -> Result<PathBuf, String> {
+    let folder = workspace_entry(app, root, folder)?;
+    if !folder.is_dir() || !app.fs_scope().is_allowed(folder.join(name)) {
+        return Err("Choose a destination within the opened folder.".into());
+    }
+    Ok(folder)
+}
+
+fn run_file_tree_action(
+    app: &tauri::AppHandle,
+    root: &Path,
+    path: &Path,
+    action: FileTreeAction,
+) -> Result<bool, String> {
+    let root = authorized_path(app, root)?;
+    if !root.is_dir() {
+        return Err("Open a workspace folder first.".into());
+    }
+    let source = workspace_entry(app, &root, path)?;
+    if source == root && !matches!(action, FileTreeAction::Open | FileTreeAction::Reveal) {
+        return Err("The workspace folder cannot be changed here.".into());
+    }
+    if matches!(action, FileTreeAction::Open | FileTreeAction::Reveal) {
+        return if matches!(action, FileTreeAction::Open) {
+            tauri_plugin_opener::open_path(dunce::simplified(&source), None::<&str>)
+                .map_err(|e| format!("Cannot open item: {e}"))
+        } else {
+            tauri_plugin_opener::reveal_item_in_dir(&source)
+                .map_err(|e| format!("Cannot show item in the file manager: {e}"))
+        }
+        .map(|_| false);
+    }
+    let name = source.file_name().ok_or("Item has no name.")?;
+    let parent = source.parent().ok_or("Item has no parent folder.")?;
+    let scope = app.fs_scope();
+    let allowed = |destination: &Path| scope.is_allowed(destination);
+    let result = match action {
+        FileTreeAction::Copy { folder } => {
+            let folder = file_tree_destination(app, &root, &folder, name)?;
+            copy_to_folder(&source, &folder, folder == parent, allowed)
+        }
+        FileTreeAction::Move { folder } => {
+            let folder = file_tree_destination(app, &root, &folder, name)?;
+            if folder.starts_with(&source) {
+                return Err("Cannot move a folder into itself.".into());
+            }
+            if folder == parent {
+                return Ok(false);
+            }
+            renamore::rename_exclusive(&source, folder.join(name))
+        }
+        FileTreeAction::Duplicate => copy_to_folder(&source, parent, true, allowed),
+        FileTreeAction::Rename { name } => {
+            validate_name(&name)?;
+            let destination = parent.join(name);
+            if destination == source {
+                return Ok(false);
+            }
+            if !allowed(&destination) {
+                return Err("Choose a destination within the opened folder.".into());
+            }
+            renamore::rename_exclusive(&source, destination)
+        }
+        FileTreeAction::Trash => {
+            return trash::delete(&source)
+                .map(|_| true)
+                .map_err(|e| format!("Cannot move item to Trash: {e}"));
+        }
+        FileTreeAction::Open | FileTreeAction::Reveal => unreachable!(),
+    };
+    result.map(|_| true).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::AlreadyExists {
+            "An item with that name already exists in the destination.".into()
+        } else {
+            format!("File operation failed: {error}")
+        }
+    })
+}
+
+#[tauri::command]
+pub async fn file_tree_action(
+    app: tauri::AppHandle,
+    root: PathBuf,
+    path: PathBuf,
+    action: FileTreeAction,
+) -> Result<bool, String> {
+    tauri::async_runtime::spawn_blocking(move || run_file_tree_action(&app, &root, &path, action))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tree_copy_preserves_contents_and_never_replaces_an_existing_item() {
+        let workspace = tempfile::tempdir().unwrap();
+        let root = workspace.path();
+        let source = root.join("project");
+        let other = root.join("destination");
+        fs::create_dir_all(source.join("nested")).unwrap();
+        fs::write(source.join("nested/note.txt"), "original").unwrap();
+        fs::create_dir(&other).unwrap();
+
+        copy_to_folder(&source, &other, false, |_| true).unwrap();
+        fs::write(other.join("project/nested/note.txt"), "keep me").unwrap();
+        assert_eq!(
+            copy_to_folder(&source, &other, false, |_| true)
+                .unwrap_err()
+                .kind(),
+            std::io::ErrorKind::AlreadyExists
+        );
+        assert_eq!(
+            fs::read_to_string(other.join("project/nested/note.txt")).unwrap(),
+            "keep me"
+        );
+        assert!(copy_to_folder(&source, &source.join("nested"), false, |_| true).is_err());
+        assert!(copy_to_folder(&source, &other, true, |_| false).is_err());
+        assert_eq!(fs::read_dir(&other).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn duplicates_use_the_next_free_name_and_keep_the_file_extension() {
+        let workspace = tempfile::tempdir().unwrap();
+        let root = workspace.path();
+        let source = root.join("note.txt");
+        fs::write(&source, "duplicate me").unwrap();
+        fs::write(root.join("note copy.txt"), "keep me").unwrap();
+
+        copy_to_folder(&source, root, true, |_| true).unwrap();
+        assert_eq!(
+            fs::read_to_string(root.join("note copy.txt")).unwrap(),
+            "keep me"
+        );
+        assert_eq!(
+            fs::read_to_string(root.join("note copy 2.txt")).unwrap(),
+            "duplicate me"
+        );
+    }
 
     #[test]
     fn validates_inline_names() {

@@ -1,9 +1,20 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { normalizePath, isInsideFolder } from "../src/filePaths.ts";
+import { normalizePath, isInsideFolder, stripVerbatimPrefix } from "../src/filePaths.ts";
 
 test("normalizePath strips the verbatim prefix and matches the plain path", () => {
   assert.equal(normalizePath("\\\\?\\C:\\repo\\src"), normalizePath("C:\\repo\\src"));
+});
+
+test("clipboard paths strip the Windows prefix without changing case", () => {
+  assert.equal(stripVerbatimPrefix("\\\\?\\C:\\My Project\\File.ts"), "C:\\My Project\\File.ts");
+  assert.equal(stripVerbatimPrefix("\\\\?\\UNC\\Server\\Share\\File.ts"), "\\\\Server\\Share\\File.ts");
+});
+
+test("POSIX paths keep spaces and literal backslashes in filenames", { skip: process.platform === "win32" }, () => {
+  assert.equal(isInsideFolder("/repo/name ", "/repo/name /nested"), true);
+  assert.equal(isInsideFolder("/repo/name", "/repo/name "), false);
+  assert.equal(isInsideFolder("/repo/name", "/repo/name\\literal"), false);
 });
 
 test("normalizePath rewrites verbatim UNC paths to plain UNC paths", () => {

@@ -60,6 +60,22 @@ body {
 .unsaved-dialog > div { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
 .unsaved-dialog button { padding: 8px 12px; border: 1px solid #555; border-radius: 4px; background: var(--control); color: var(--text); cursor: pointer; }
 
+.file-tree-dialog { overflow-wrap: anywhere; }
+.file-tree-dialog input {
+  display: block;
+  width: 100%;
+  margin: 6px 0 14px;
+  padding: 6px 8px;
+  border: 1px solid #555;
+  border-radius: 4px;
+  color: inherit;
+  background: var(--control);
+}
+.file-tree-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.file-tree-dialog button:disabled { opacity: 0.5; cursor: default; }
+.file-tree-action-error, .file-tree-action-status { padding: 0 8px; overflow-wrap: anywhere; }
+.file-tree-action-error { color: #fca5a5; }
+
 button,
 input,
 textarea,

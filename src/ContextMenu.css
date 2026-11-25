@@ -65,3 +65,21 @@
   border-block: 4px solid transparent;
   border-inline-start: 5px solid currentColor;
 }
+
+.file-context-menu {
+  min-width: min(222px, calc(100vw - 12px));
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--control);
+}
+
+.file-context-menu button {
+  justify-content: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.file-context-menu svg { flex: none; }
+.context-menu-separator { margin: 4px 2px; border-top: 1px solid var(--border); }
+.context-menu button.context-menu-danger { color: #fca5a5; }
+.file-context-menu button:disabled { cursor: default; }

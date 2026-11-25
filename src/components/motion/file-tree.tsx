@@ -20,6 +20,8 @@ import { SharedLayoutBg } from "./shared-layout-bg";
 import { EASE_OUT, SPRING_LAYOUT, SPRING_SWAP } from "../../lib/ease";
 import { cn } from "../../lib/utils";
 
+type ItemMenu = (position: { x: number; y: number; opener: HTMLButtonElement }) => void;
+
 type FileTreeItem = {
   content?: ReactNode;
   value: string;
@@ -30,6 +32,7 @@ type FileTreeItem = {
   disabled?: boolean;
   className?: string;
   title?: string;
+  onItemMenu?: ItemMenu;
 };
 
 export interface FileTreeFolderProps {
@@ -40,6 +43,7 @@ export interface FileTreeFolderProps {
   children?: ReactNode;
   className?: string;
   title?: string;
+  onItemMenu?: ItemMenu;
 }
 
 export interface FileTreeFileProps {
@@ -50,6 +54,7 @@ export interface FileTreeFileProps {
   disabled?: boolean;
   className?: string;
   title?: string;
+  onItemMenu?: ItemMenu;
 }
 
 export type FileTreeClassNames = {
@@ -146,6 +151,7 @@ function itemsFromChildren(children: ReactNode): FileTreeItem[] {
         disabled: props.disabled,
         className: props.className,
         title: props.title,
+        onItemMenu: props.onItemMenu,
         children: itemsFromChildren(props.children),
       });
       return;
@@ -162,6 +168,7 @@ function itemsFromChildren(children: ReactNode): FileTreeItem[] {
         disabled: props.disabled,
         className: props.className,
         title: props.title,
+        onItemMenu: props.onItemMenu,
       });
     }
   });
@@ -295,7 +302,12 @@ export function FileTree({
       const isFolder = row.item.type === "folder";
       const isOpen = expanded.has(row.item.value);
 
-      if (event.key === "ArrowDown" && next) {
+      if (row.item.onItemMenu && (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10"))) {
+        event.preventDefault();
+        const opener = event.currentTarget;
+        const { left, bottom } = opener.getBoundingClientRect();
+        row.item.onItemMenu({ x: left, y: bottom, opener });
+      } else if (event.key === "ArrowDown" && next) {
         event.preventDefault();
         focusRow(next.item.value);
       } else if (event.key === "ArrowUp" && previous) {
@@ -376,10 +388,17 @@ export function FileTree({
                 aria-selected={isSelected}
                 aria-expanded={isFolder ? isOpen : undefined}
                 aria-disabled={row.item.disabled || undefined}
+                aria-haspopup={row.item.onItemMenu ? "menu" : undefined}
                 title={row.item.title}
                 tabIndex={focusedRow === row.item.value ? 0 : -1}
                 onFocus={() => setFocusedId(row.item.value)}
                 onKeyDown={(event) => handleKeyDown(event, row)}
+                onContextMenu={row.item.onItemMenu ? (event) => {
+                  event.preventDefault();
+                  const opener = event.currentTarget;
+                  opener.focus({ preventScroll: true });
+                  row.item.onItemMenu?.({ x: event.clientX, y: event.clientY, opener });
+                } : undefined}
                 onClick={() => {
                   if (row.item.disabled) return;
                   selectItem(row.item);

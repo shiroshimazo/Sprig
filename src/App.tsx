@@ -22,6 +22,7 @@ import WindowControls from "./WindowControls";
 import { isWindows } from "./lib/platform";
 import TerminalTabIcon from "./TerminalTabIcon";
 import type { TerminalIconId } from "./terminalIcons";
+import { isInsideFolder } from "./filePaths";
 import "./App.css";
 
 type TerminalTab = { id: string; name: string; cwd: string | null; icon?: TerminalIconId; detached?: boolean; sessionId?: string; detachOnReady?: boolean };
@@ -266,9 +267,11 @@ function App() {
   const [fileError, setFileError] = useState<string | null>(null);
   const readRequest = useRef(0);
   const saving = useRef(false);
+  const changingEntry = useRef(false);
+  const [entryChangePending, setEntryChangePending] = useState(false);
   const [savePending, setSavePending] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [discarded, setDiscarded] = useState<{ path: string } | null>(null);
+  const [invalidated, setInvalidated] = useState<{ paths: string[] } | null>(null);
   const [promptPath, setPromptPath] = useState<string | null>(null);
   const prompt = useRef<HTMLDialogElement>(null);
   const folderName = folderPath?.split(/[\\/]/).filter(Boolean).pop() ?? folderPath;
@@ -277,7 +280,7 @@ function App() {
   const saveFile = useCallback(async (requestedPath?: string) => {
     const path = requestedPath ?? activePath.current;
     const document = path ? documents.current.get(path) : undefined;
-    if (!path || !document || saving.current) return false;
+    if (!path || !document || saving.current || changingEntry.current) return false;
     const content = document.current;
     const expectedContent = document.saved;
     saving.current = true;
@@ -325,7 +328,7 @@ function App() {
   }
 
   const confirmLeaving = useCallback(async (paths: string[]) => {
-    if (guarding.current || saving.current) return false;
+    if (guarding.current || saving.current || changingEntry.current) return false;
     guarding.current = true;
     try {
       for (const path of paths) {
@@ -339,8 +342,9 @@ function App() {
         if (choice === "save" && !await saveFile(path)) return false;
         if (choice === "discard") {
           document.current = document.saved;
-          setDiscarded({ path });
+          setInvalidated({ paths: [path] });
           if (activePath.current === path) {
+            setFileContent(document.saved);
             setContentRevision((revision) => revision + 1);
           }
         }
@@ -421,6 +425,7 @@ function App() {
   const fileTabId = (path: string) => `file-tab-${encodeURIComponent(path)}`;
 
   async function openFile(path: string) {
+    if (changingEntry.current) return;
     if (!openTabs.includes(path)) setOpenTabs((tabs) => [...tabs, path]);
     await activateFile(path);
   }
@@ -431,7 +436,7 @@ function App() {
     if (cached) {
       activePath.current = path;
       setFilePath(path);
-      setFileContent(cached.saved);
+      setFileContent(cached.current);
       setContentRevision((revision) => revision + 1);
       setFileError(null);
       return;
@@ -473,6 +478,39 @@ function App() {
         setFileContent("");
         setFileError(null);
       }
+    }
+  }
+
+  async function changeTreeEntry(path: string, operation: () => Promise<boolean>) {
+    const affected = (file: string) => isInsideFolder(path, file);
+    if (saving.current) throw new Error("Wait for the current save to finish.");
+    if (!await confirmLeaving([...documents.current.keys()].filter(affected))) return null;
+
+    changingEntry.current = true;
+    setEntryChangePending(true);
+    try {
+      const changed = await operation();
+      if (!changed) return false;
+      const invalid = [...documents.current.keys()].filter(affected);
+      for (const file of invalid) documents.current.delete(file);
+      if (invalid.length) setInvalidated({ paths: invalid });
+      if (loadingPath && affected(loadingPath)) {
+        readRequest.current++;
+        setLoadingPath(null);
+      }
+      const remaining = openTabs.filter((file) => !affected(file));
+      if (remaining.length !== openTabs.length) setOpenTabs(remaining);
+      if (activePath.current && affected(activePath.current)) {
+        activePath.current = null;
+        setFilePath(null);
+        setFileContent("");
+        setFileError(null);
+        if (remaining[0]) await activateFile(remaining[0]);
+      }
+      return true;
+    } finally {
+      changingEntry.current = false;
+      setEntryChangePending(false);
     }
   }
 
@@ -629,7 +667,7 @@ function App() {
             </div>}
           </div>
           <div className="sidebar-content">
-            {sidebarMode === "source" ? <SourceControl control={sourceControl} path={folderPath} /> : folderPath ? <FolderTree key={folderPath} path={folderPath} name={folderName ?? folderPath} activePath={filePath} onOpenFile={openFile} creation={creation} onCreationDone={() => { setCreation(null); bumpGitStatus(); }} changedPaths={changedPaths} refreshToken={treeRefresh} onFilesChanged={bumpGitStatus} /> : <p className="sidebar-empty">No folder open.</p>}
+            {sidebarMode === "source" ? <SourceControl control={sourceControl} path={folderPath} /> : folderPath ? <FolderTree key={folderPath} path={folderPath} name={folderName ?? folderPath} activePath={filePath} onOpenFile={openFile} changeEntry={changeTreeEntry} creation={creation} onCreationDone={() => { setCreation(null); bumpGitStatus(); }} changedPaths={changedPaths} refreshToken={treeRefresh} onFilesChanged={bumpGitStatus} /> : <p className="sidebar-empty">No folder open.</p>}
           </div>
           <div className="sidebar-switch" aria-label="Sidebar views">
             <button
@@ -656,7 +694,7 @@ function App() {
 
         <main className="workbench" style={{ gridTemplateRows: terminalVisible ? `minmax(0, 1fr) 4px ${terminalHeight}%` : "minmax(0, 1fr)" }}>
           {sidebarMode === "source" && <CommitHistory control={sourceControl} />}
-          <section id="editor-pane" className="editor" style={sidebarMode === "source" ? { display: "none" } : undefined} role="tabpanel" aria-labelledby={filePath ? fileTabId(filePath) : "editor-heading"}>
+          <section id="editor-pane" className="editor" inert={entryChangePending} style={sidebarMode === "source" ? { display: "none" } : undefined} role="tabpanel" aria-labelledby={filePath ? fileTabId(filePath) : "editor-heading"}>
             <div className="panel-header">
               <h2 id="editor-heading">Editor</h2>
               {openTabs.length > 0 && (
@@ -720,7 +758,7 @@ function App() {
               </div>
             )}
             {filePath ? (
-              <CodeEditor content={fileContent} path={filePath} onChange={updateContent} onPositionChange={setCursorPosition} discarded={discarded} />
+              <CodeEditor content={fileContent} path={filePath} onChange={updateContent} onPositionChange={setCursorPosition} invalidated={invalidated} />
             ) : (
               <div className="editor-empty">
                 <h2>No file open</h2>

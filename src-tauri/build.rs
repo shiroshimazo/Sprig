@@ -9,6 +9,7 @@ fn main() {
             "create_file",
             "create_folder",
             "list_directory",
+            "file_tree_action",
             "save_file",
             "terminal_start",
             "terminal_write",

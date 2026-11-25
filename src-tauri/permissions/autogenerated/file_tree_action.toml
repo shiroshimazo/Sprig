@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-file-tree-action"
+description = "Enables the file_tree_action command without any pre-configured scope."
+commands.allow = ["file_tree_action"]
+
+[[permission]]
+identifier = "deny-file-tree-action"
+description = "Denies the file_tree_action command without any pre-configured scope."
+commands.deny = ["file_tree_action"]
