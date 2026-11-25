@@ -3,6 +3,40 @@ use tauri::{Manager, WebviewUrl};
 /// Label prefix of the extra IDE windows opened from the file menu.
 pub const WINDOW_PREFIX: &str = "sprig";
 
+#[cfg(windows)]
+pub(crate) fn disable_browser_reload_shortcut(webview: tauri::Webview) {
+    use webview2_com::{
+        AcceleratorKeyPressedEventHandler,
+        Microsoft::Web::WebView2::Win32::ICoreWebView2AcceleratorKeyPressedEventArgs2,
+    };
+    use windows_core::Interface;
+
+    let result = webview.with_webview(|view| {
+        let handler = AcceleratorKeyPressedEventHandler::create(Box::new(|_, args| {
+            if let Some(args) = args {
+                let mut key = 0;
+                unsafe { args.VirtualKey(&mut key)? };
+                if key == u32::from(b'R') {
+                    // Let Ctrl+R reach the sidebar shortcut or shell input.
+                    let args = args.cast::<ICoreWebView2AcceleratorKeyPressedEventArgs2>()?;
+                    unsafe { args.SetIsBrowserAcceleratorKeyEnabled(false)? };
+                }
+            }
+            Ok(())
+        }));
+        let mut token = 0;
+        if let Err(error) = unsafe {
+            view.controller()
+                .add_AcceleratorKeyPressed(&handler, &mut token)
+        } {
+            eprintln!("Cannot register reload shortcut: {error}");
+        }
+    });
+    if let Err(error) = result {
+        eprintln!("Cannot access webview for reload shortcut: {error}");
+    }
+}
+
 /// Finds a label that no other window uses yet.
 fn next_label(app: &tauri::AppHandle) -> String {
     let open = app.webview_windows();

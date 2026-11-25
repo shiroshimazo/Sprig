@@ -5,9 +5,8 @@
 .source-control button:focus-visible, .source-control textarea:focus-visible { outline: 2px solid #87b5ff; outline-offset: 2px; }
 .source-control { padding: 10px 6px; }
 .source-control button:disabled { opacity: .45; cursor: default; }
-.source-toolbar, .source-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.source-toolbar { justify-content: space-between; }
-.source-toolbar strong { overflow-wrap: anywhere; }
+.source-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.source-branch { overflow-wrap: anywhere; }
 .source-control textarea { display: block; width: 100%; min-height: 85px; resize: vertical; margin: 6px 0; padding: 8px; background: var(--background); color: var(--text); border: 1px solid var(--border); border-radius: 4px; }
 .source-hint, .source-status { color: var(--text-muted); font-size: 11px; }
 .source-status { min-height: 1.5em; }

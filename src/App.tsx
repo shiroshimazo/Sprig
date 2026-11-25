@@ -8,7 +8,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { animate } from "animejs";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowUpRightIcon, CommandLineIcon, File01Icon, Folder01Icon, FolderOpenIcon, GitBranchIcon, Menu01Icon, MultiplicationSignIcon, PlusSignIcon, RefreshIcon, SaveIcon, SidebarLeftIcon, TerminalIcon, WindowsNewIcon } from "@hugeicons/core-free-icons";
+import { ArrowUpRightIcon, CommandLineIcon, File01Icon, Folder01Icon, FolderOpenIcon, GitBranchIcon, Menu01Icon, MultiplicationSignIcon, PlusSignIcon, SaveIcon, SidebarLeftIcon, TerminalIcon, WindowsNewIcon } from "@hugeicons/core-free-icons";
 import { beyondDragThreshold, isOutsideWindow, type WindowBounds } from "./terminalDrag";
 import ResizeHandle from "./ResizeHandle";
 import FolderTree from "./FolderTree";
@@ -41,21 +41,13 @@ function App() {
   const [workspaceReady, setWorkspaceReady] = useState(false);
   const [creation, setCreation] = useState<{ kind: "file" | "folder" } | null>(null);
   const [sidebarMode, setSidebarMode] = useState<"files" | "source">("files");
-  // Bumped when the file tree should re-read the folders it already loaded.
-  // The refresh only touches the tree, so terminals and open tabs stay as they are.
   const [treeRefresh, setTreeRefresh] = useState(0);
   // Bumped whenever something changes on disk, so the file tree can mark the
   // files that are not committed yet again.
   const [gitRevision, setGitRevision] = useState(0);
   const bumpGitStatus = useCallback(() => setGitRevision((revision) => revision + 1), []);
-  // Re-read the already loaded folders in the tree and refresh the
-  // "not committed yet" marks. Terminals, open tabs and the open folder are
-  // left untouched.
-  const refreshFiles = useCallback(() => {
-    setTreeRefresh((revision) => revision + 1);
-    bumpGitStatus();
-  }, [bumpGitStatus]);
   const sourceControl = useSourceControl(folderPath, sidebarMode === "source", bumpGitStatus);
+  const { refresh: refreshSourceControl } = sourceControl;
   const changedPaths = useGitStatus(folderPath, gitRevision);
   const nextTerminalNumber = useRef(2);
   const [terminals, setTerminals] = useState<TerminalTab[]>(() => [{ id: crypto.randomUUID(), name: "Terminal 1", cwd: null }]);
@@ -382,6 +374,21 @@ function App() {
   }, [confirmLeaving]);
 
   useEffect(() => {
+    const handleRefresh = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.isComposing || event.key.toLowerCase() !== "r") return;
+      event.preventDefault();
+      // In xterm, Ctrl+R belongs to the shell's history search.
+      if (event.target instanceof Element && event.target.closest(".xterm")) return;
+      if (event.repeat || !folderPath) return;
+      bumpGitStatus();
+      if (sidebarMode === "source") void refreshSourceControl();
+      else setTreeRefresh((revision) => revision + 1);
+    };
+    window.addEventListener("keydown", handleRefresh, true);
+    return () => window.removeEventListener("keydown", handleRefresh, true);
+  }, [folderPath, sidebarMode, bumpGitStatus, refreshSourceControl]);
+
+  useEffect(() => {
     const handleSave = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
         event.preventDefault();
@@ -619,9 +626,6 @@ function App() {
             {sidebarMode === "files" && <div className="creation-actions">
               <button disabled={!folderPath} title="New file" aria-label="New file" onClick={() => startCreation("file")}><HugeiconsIcon icon={PlusSignIcon} size={13} aria-hidden="true" /> File</button>
               <button disabled={!folderPath} title="New folder" aria-label="New folder" onClick={() => startCreation("folder")}><HugeiconsIcon icon={PlusSignIcon} size={13} aria-hidden="true" /> Folder</button>
-              <button className="sidebar-refresh" aria-label="Refresh files" title="Refresh files" disabled={!folderPath} onClick={refreshFiles}>
-                <HugeiconsIcon icon={RefreshIcon} size={13} aria-hidden="true" focusable="false" />
-              </button>
             </div>}
           </div>
           <div className="sidebar-content">

@@ -10,7 +10,15 @@ use tauri::{Emitter, Manager};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default();
+    #[cfg(windows)]
+    let app = app.plugin(
+        tauri::plugin::Builder::<_, ()>::new("reload-shortcut")
+            .on_webview_ready(window::disable_browser_reload_shortcut)
+            .build(),
+    );
+
+    app
         .manage(terminal::Terminals::default())
         .manage(watcher::Watchers::default())
         .on_page_load(|webview, _| {

@@ -82,14 +82,14 @@ type Control = ReturnType<typeof useSourceControl>;
 
 export function SourceControl({ control, path }: { control: Control; path: string | null }) {
   const [message, setMessage] = useState("");
-  const { data, busy, error, notice, act, refresh } = control;
+  const { data, busy, error, notice, act } = control;
   useEffect(() => { setMessage(""); }, [path]);
   if (!path) return <p className="sidebar-empty">Open a repository folder to see Source Control.</p>;
   const staged = data?.changes.filter((file) => file.index !== " " && file.index !== "?") ?? [];
   const unstaged = data?.changes.filter((file) => file.worktree !== " ") ?? [];
   const commit = async () => { if (await act("commit", undefined, message)) setMessage(""); };
   return <div className="source-control" aria-busy={busy}>
-    <div className="source-toolbar"><strong title={data?.branch}>{data?.branch ?? "Repository"}</strong><button disabled={busy} onClick={() => void refresh()}>Refresh</button></div>
+    <strong className="source-branch" title={data?.branch}>{data?.branch ?? "Repository"}</strong>
     {error && <p className="source-error" role="alert">{error}</p>}
     <p className="source-status" role="status">{busy ? "Working…" : notice}</p>
     {data && <>
