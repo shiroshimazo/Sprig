@@ -13,43 +13,64 @@ type Item = {
   children: Item[];
 };
 
-type MenuRequest = { id: number; x: number; y: number; items: Item[] };
+type MenuRequest = { id: number; x: number; y: number; items: Item[]; terminal_only: boolean };
 type Panel = { x: number; y: number; opener?: HTMLButtonElement; items: Item[] };
 type Menu = { id: number; panels: Panel[] };
 
-function complete(id: number, command: number | null) {
-  void invoke("complete_context_menu", { id, command }).catch(console.error);
+function complete(id: number, command: number | null, useNativeMenu = false) {
+  void invoke("complete_context_menu", { id, command, useNativeMenu }).catch(console.error);
+}
+
+function rememberFocus() {
+  const target = document.activeElement;
+  if (!(target instanceof HTMLElement)) return null;
+  const focus = () => target.focus({ preventScroll: true });
+  if (!(target instanceof HTMLTextAreaElement) || !target.closest(".terminal-content")) return focus;
+
+  // xterm clears its hidden textarea on blur, including the selection prepared for native Copy.
+  const { value, selectionStart, selectionEnd, selectionDirection } = target;
+  return () => {
+    focus();
+    target.value = value;
+    target.setSelectionRange(selectionStart, selectionEnd, selectionDirection);
+  };
 }
 
 export default function ContextMenu() {
   const [menu, setMenu] = useState<Menu | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const pending = useRef<number | null>(null);
-  const previousFocus = useRef<HTMLElement | null>(null);
+  const previousFocus = useRef<(() => void) | null>(null);
 
   const close = useCallback((command: number | null = null, restoreFocus = true) => {
     if (pending.current === null) return;
+    if (restoreFocus) previousFocus.current?.();
     complete(pending.current, command);
     pending.current = null;
+    previousFocus.current = null;
     setMenu(null);
-    if (restoreFocus) previousFocus.current?.focus({ preventScroll: true });
   }, []);
 
   useEffect(() => {
     if (!isTauri() || !isWindows()) return;
     let disposed = false;
     let unlisten: (() => void) | undefined;
-    const onMenu = ({ id, x, y, items }: MenuRequest) => {
+    const onMenu = ({ id, x, y, items, terminal_only }: MenuRequest) => {
       if (disposed || document.querySelector(":modal")) {
         complete(id, null);
         return;
       }
+      const scale = window.devicePixelRatio;
+      const anchor = { x: x / scale, y: y / scale };
+      if (terminal_only && !document.elementFromPoint(anchor.x, anchor.y)?.closest(".terminal-content")) {
+        complete(id, null, true);
+        return;
+      }
       if (pending.current === null) {
-        previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        previousFocus.current = rememberFocus();
       }
       pending.current = id;
-      const scale = window.devicePixelRatio;
-      setMenu({ id, panels: [{ x: x / scale, y: y / scale, items }] });
+      setMenu({ id, panels: [{ ...anchor, items }] });
     };
     void getCurrentWebviewWindow().listen<MenuRequest>("webview-context-menu", ({ payload }) => onMenu(payload))
       .then((stop) => {

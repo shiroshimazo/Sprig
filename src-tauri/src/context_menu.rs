@@ -9,6 +9,8 @@ use webview2_com::{
 };
 use windows_core::{BOOL, Interface, PWSTR, Result};
 
+const WRITING_DIRECTION_MENU_ID: i32 = 57328;
+
 thread_local! {
     static WINDOWS: RefCell<HashMap<String, Option<PendingMenu>>> = RefCell::new(HashMap::new());
     static NEXT_REQUEST: Cell<u32> = const { Cell::new(0) };
@@ -29,6 +31,7 @@ struct MenuRequest {
     x: i32,
     y: i32,
     items: Vec<MenuItem>,
+    terminal_only: bool,
 }
 
 struct PendingMenu {
@@ -43,6 +46,41 @@ impl Drop for PendingMenu {
         // WebView2 waits for completion even when no command is selected.
         let _ = unsafe { self.deferral.Complete() };
     }
+}
+
+fn menu_item_name(item: &ICoreWebView2ContextMenuItem) -> Result<String> {
+    let mut name = PWSTR::null();
+    unsafe { item.Name(&mut name)? };
+    Ok(take_pwstr(name))
+}
+
+fn remove_excluded_items(collection: &ICoreWebView2ContextMenuItemCollection) -> Result<()> {
+    let mut count = 0;
+    unsafe { collection.Count(&mut count)? };
+    for index in (0..count).rev() {
+        let item = unsafe { collection.GetValueAtIndex(index)? };
+        let mut kind = COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND::default();
+        unsafe { item.Kind(&mut kind)? };
+        if kind == COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_SEPARATOR {
+            continue;
+        }
+        let excluded = match menu_item_name(&item)?.as_str() {
+            "emoji" | "print" | "writingDirection" | "moreTools" | "inspectElement" => true,
+            "other" if kind == COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_SUBMENU => {
+                // WebView2 exposes Chromium's writing direction submenu under the name "other".
+                let mut command = 0;
+                unsafe { item.CommandId(&mut command)? };
+                command == WRITING_DIRECTION_MENU_ID
+            }
+            _ => false,
+        };
+        if excluded {
+            unsafe { collection.RemoveValueAtIndex(index)? };
+        } else if kind == COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_SUBMENU {
+            remove_excluded_items(&unsafe { item.Children()? })?;
+        }
+    }
+    Ok(())
 }
 
 fn menu_items(
@@ -61,16 +99,13 @@ fn menu_items(
         if kind == COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_SEPARATOR {
             continue;
         }
-        if page_menu {
-            let mut name = PWSTR::null();
-            unsafe { item.Name(&mut name)? };
-            let name = take_pwstr(name);
-            if !matches!(
-                name.as_str(),
-                "back" | "refresh" | "reload" | "saveAs" | "print" | "moreTools" | "inspectElement"
-            ) {
-                continue;
-            }
+        if page_menu
+            && !matches!(
+                menu_item_name(&item)?.as_str(),
+                "back" | "refresh" | "reload" | "saveAs"
+            )
+        {
+            continue;
         }
         let mut label = PWSTR::null();
         unsafe { item.Label(&mut label)? };
@@ -111,6 +146,9 @@ fn show_menu(
     app: &AppHandle,
     args: ICoreWebView2ContextMenuRequestedEventArgs,
 ) -> Result<()> {
+    let collection = unsafe { args.MenuItems()? };
+    remove_excluded_items(&collection)?;
+
     let target = unsafe { args.ContextMenuTarget()? };
     let mut kind = COREWEBVIEW2_CONTEXT_MENU_TARGET_KIND::default();
     let mut editable = BOOL::default();
@@ -118,12 +156,16 @@ fn show_menu(
         target.Kind(&mut kind)?;
         target.IsEditable(&mut editable)?;
     }
-    if kind != COREWEBVIEW2_CONTEXT_MENU_TARGET_KIND_PAGE || editable.as_bool() {
+    let page_menu = kind == COREWEBVIEW2_CONTEXT_MENU_TARGET_KIND_PAGE && !editable.as_bool();
+    if !page_menu
+        && !editable.as_bool()
+        && kind != COREWEBVIEW2_CONTEXT_MENU_TARGET_KIND_SELECTED_TEXT
+    {
         return Ok(());
     }
 
     let mut commands = HashSet::new();
-    let items = menu_items(&unsafe { args.MenuItems()? }, &mut commands, true, true)?;
+    let items = menu_items(&collection, &mut commands, true, page_menu)?;
     if items.is_empty() {
         return Ok(());
     }
@@ -155,6 +197,7 @@ fn show_menu(
                 x: location.x,
                 y: location.y,
                 items,
+                terminal_only: !page_menu,
             },
         )
         .is_err()
@@ -220,15 +263,23 @@ pub(crate) fn complete_context_menu(
     window: WebviewWindow,
     id: u32,
     command: Option<i32>,
+    use_native_menu: bool,
 ) -> std::result::Result<(), String> {
     let label = window.label().to_owned();
     window
         .run_on_main_thread(move || {
             if let Some(menu) = take_pending(&label, id) {
-                if let Some(command) = command.filter(|command| menu.commands.contains(command)) {
-                    if let Err(error) = unsafe { menu.args.SetSelectedCommandId(command) } {
-                        eprintln!("Cannot select context menu command: {error}");
-                    }
+                let result = if use_native_menu {
+                    unsafe { menu.args.SetHandled(false) }
+                } else if let Some(command) =
+                    command.filter(|command| menu.commands.contains(command))
+                {
+                    unsafe { menu.args.SetSelectedCommandId(command) }
+                } else {
+                    Ok(())
+                };
+                if let Err(error) = result {
+                    eprintln!("Cannot complete context menu: {error}");
                 }
             }
         })
