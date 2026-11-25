@@ -3,6 +3,8 @@ import type { KeyboardEvent, ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { ClipboardPasteIcon, Copy01Icon, Delete02Icon, RedoIcon, ScissorIcon, TextSelectIcon, UndoIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { isWindows } from "./lib/platform";
 import "./ContextMenu.css";
 
@@ -18,10 +20,37 @@ export type ContextMenuItem = {
   action?: () => void;
 };
 
-type MenuRequest = { id: number; x: number; y: number; items: ContextMenuItem[]; terminal_only: boolean };
+type NativeMenuItem = Pick<ContextMenuItem, "label" | "shortcut" | "enabled" | "command"> & {
+  name: string;
+  separator_before: boolean;
+  children: NativeMenuItem[];
+};
+type MenuRequest = { id: number; x: number; y: number; items: NativeMenuItem[]; page_menu: boolean };
 type Panel = { x: number; y: number; opener?: HTMLButtonElement; items: ContextMenuItem[] };
-type Menu = { id: number; panel: Panel };
+type Menu = { id: number; panel: Panel; editor: boolean };
 type CloseMenu = (command?: number | null, restoreFocus?: boolean) => void;
+
+const editorIcons = new Map([
+  ["undo", UndoIcon],
+  ["redo", RedoIcon],
+  ["cut", ScissorIcon],
+  ["copy", Copy01Icon],
+  ["paste", ClipboardPasteIcon],
+  ["pasteAndMatchStyle", ClipboardPasteIcon],
+  ["pasteAsPlainText", ClipboardPasteIcon],
+  ["delete", Delete02Icon],
+  ["selectAll", TextSelectIcon],
+]);
+
+function styleEditorItem(item: NativeMenuItem): ContextMenuItem {
+  const icon = editorIcons.get(item.name);
+  return {
+    ...item,
+    icon: icon && <HugeiconsIcon icon={icon} size={14} aria-hidden="true" />,
+    separator: item.separator_before,
+    children: item.children.map(styleEditorItem),
+  };
+}
 
 function complete(id: number, command: number | null, useNativeMenu = false) {
   void invoke("complete_context_menu", { id, command, useNativeMenu }).catch(console.error);
@@ -60,7 +89,7 @@ export default function ContextMenu() {
     if (!isTauri() || !isWindows()) return;
     let disposed = false;
     let unlisten: (() => void) | undefined;
-    const onMenu = ({ id, x, y, items, terminal_only }: MenuRequest) => {
+    const onMenu = ({ id, x, y, items, page_menu }: MenuRequest) => {
       if (disposed || document.querySelector(":modal")) {
         complete(id, null);
         return;
@@ -68,11 +97,12 @@ export default function ContextMenu() {
       const scale = window.devicePixelRatio;
       const anchor = { x: x / scale, y: y / scale };
       const target = document.elementFromPoint(anchor.x, anchor.y);
-      if (target?.closest('.file-tree-row[aria-haspopup="menu"], .file-context-menu')) {
+      if (target?.closest('.file-tree-row[aria-haspopup="menu"], .workspace-context-menu')) {
         complete(id, null);
         return;
       }
-      if (terminal_only && !target?.closest(".terminal-content")) {
+      const editor = !!target?.closest(".cm-editor");
+      if (!page_menu && !editor && !target?.closest(".terminal-content")) {
         complete(id, null, true);
         return;
       }
@@ -80,7 +110,7 @@ export default function ContextMenu() {
         previousFocus.current = rememberFocus();
       }
       pending.current = id;
-      setMenu({ id, panel: { ...anchor, items } });
+      setMenu({ id, editor, panel: { ...anchor, items: editor ? items.map(styleEditorItem) : items } });
     };
     void getCurrentWebviewWindow().listen<MenuRequest>("webview-context-menu", ({ payload }) => onMenu(payload))
       .then((stop) => {
@@ -100,7 +130,13 @@ export default function ContextMenu() {
     };
   }, []);
 
-  return menu && <ContextMenuPopup key={menu.id} panel={menu.panel} close={close} />;
+  return menu && <ContextMenuPopup
+    key={menu.id}
+    panel={menu.panel}
+    close={close}
+    className={menu.editor ? "workspace-context-menu" : undefined}
+    label={menu.editor ? "Editor context menu" : undefined}
+  />;
 }
 
 export function ContextMenuPopup({ panel, close, label = "Context menu", className = "" }: {

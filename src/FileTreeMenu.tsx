@@ -122,7 +122,7 @@ export default function FileTreeMenu({ root, target, dismiss, changeEntry, onCha
       panel={{ x: target.x, y: target.y, items }}
       close={(_, restoreFocus = true) => dismiss(restoreFocus)}
       label={`Actions for ${target.entry.name}`}
-      className="file-context-menu"
+      className="workspace-context-menu"
     />}
     {error && !prompt && <p className="file-tree-action-error" role="alert">{error}</p>}
     {busy && !prompt && <p className="file-tree-action-status" role="status">Working…</p>}

@@ -18,10 +18,12 @@ thread_local! {
 
 #[derive(Clone, Serialize)]
 struct MenuItem {
+    name: String,
     label: String,
     shortcut: String,
     enabled: bool,
     command: Option<i32>,
+    separator_before: bool,
     children: Vec<MenuItem>,
 }
 
@@ -31,7 +33,7 @@ struct MenuRequest {
     x: i32,
     y: i32,
     items: Vec<MenuItem>,
-    terminal_only: bool,
+    page_menu: bool,
 }
 
 struct PendingMenu {
@@ -90,6 +92,7 @@ fn menu_items(
     page_menu: bool,
 ) -> Result<Vec<MenuItem>> {
     let mut items = Vec::new();
+    let mut separator_before = false;
     let mut count = 0;
     unsafe { collection.Count(&mut count)? };
     for index in 0..count {
@@ -97,14 +100,11 @@ fn menu_items(
         let mut kind = COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND::default();
         unsafe { item.Kind(&mut kind)? };
         if kind == COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_SEPARATOR {
+            separator_before = !items.is_empty();
             continue;
         }
-        if page_menu
-            && !matches!(
-                menu_item_name(&item)?.as_str(),
-                "back" | "refresh" | "reload" | "saveAs"
-            )
-        {
+        let name = menu_item_name(&item)?;
+        if page_menu && !matches!(name.as_str(), "back" | "refresh" | "reload" | "saveAs") {
             continue;
         }
         let mut label = PWSTR::null();
@@ -131,10 +131,12 @@ fn menu_items(
             (Some(command), Vec::new())
         };
         items.push(MenuItem {
+            name,
             label,
             shortcut,
             enabled,
             command,
+            separator_before: std::mem::take(&mut separator_before),
             children,
         });
     }
@@ -197,7 +199,7 @@ fn show_menu(
                 x: location.x,
                 y: location.y,
                 items,
-                terminal_only: !page_menu,
+                page_menu,
             },
         )
         .is_err()
