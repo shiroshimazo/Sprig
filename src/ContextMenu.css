@@ -2,13 +2,14 @@
   position: fixed;
   z-index: 110;
   width: max-content;
-  min-width: min(230px, calc(100vw - 12px));
+  min-width: min(222px, calc(100vw - 12px));
   max-width: calc(100vw - 12px);
   max-height: calc(100dvh - 12px);
   padding: 5px;
   overflow: auto;
-  border-radius: 12px;
-  background: #292929;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--control);
   color: #f0f0f0;
   font: 13px/1.4 "Segoe UI", sans-serif;
   user-select: none;
@@ -18,8 +19,7 @@
 .context-menu button {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 18px;
+  gap: 8px;
   width: 100%;
   min-height: 30px;
   padding: 4px 9px;
@@ -28,7 +28,7 @@
   background: transparent;
   color: inherit;
   text-align: start;
-  cursor: default;
+  cursor: pointer;
 }
 
 .context-menu button:not(:disabled):hover,
@@ -42,13 +42,19 @@
 
 .context-menu button:disabled {
   color: #858585;
+  cursor: default;
 }
 
 .context-menu-label {
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.context-menu-label:first-child { margin-inline-start: 22px; }
+.context-menu svg { flex: none; }
+.context-menu-check { flex: 0 0 14px; text-align: center; }
 
 .context-menu-shortcut {
   color: #b4b4b4;
@@ -66,22 +72,5 @@
   border-inline-start: 5px solid currentColor;
 }
 
-.workspace-context-menu {
-  min-width: min(222px, calc(100vw - 12px));
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--control);
-}
-
-.workspace-context-menu button {
-  justify-content: flex-start;
-  gap: 8px;
-  cursor: pointer;
-}
-
-.workspace-context-menu svg { flex: none; }
-.workspace-context-menu .context-menu-label { flex: 1 1 auto; }
-.workspace-context-menu .context-menu-label:first-child { margin-inline-start: 22px; }
 .context-menu-separator { margin: 4px 2px; border-top: 1px solid var(--border); }
 .context-menu button.context-menu-danger { color: #fca5a5; }
-.workspace-context-menu button:disabled { cursor: default; }

@@ -3,7 +3,7 @@ import type { KeyboardEvent, ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { ClipboardPasteIcon, Copy01Icon, Delete02Icon, RedoIcon, ScissorIcon, TextSelectIcon, UndoIcon } from "@hugeicons/core-free-icons";
+import { ArrowLeft01Icon, ClipboardPasteIcon, Copy01Icon, Delete02Icon, LinkSquare01Icon, RedoIcon, RefreshIcon, SaveIcon, ScissorIcon, TextSelectIcon, UndoIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { isWindows } from "./lib/platform";
 import "./ContextMenu.css";
@@ -18,19 +18,20 @@ export type ContextMenuItem = {
   separator?: boolean;
   destructive?: boolean;
   action?: () => void;
+  choice?: { kind: "checkbox" | "radio"; checked: boolean };
 };
 
-type NativeMenuItem = Pick<ContextMenuItem, "label" | "shortcut" | "enabled" | "command"> & {
+type NativeMenuItem = Pick<ContextMenuItem, "label" | "shortcut" | "enabled" | "command" | "choice"> & {
   name: string;
   separator_before: boolean;
   children: NativeMenuItem[];
 };
-type MenuRequest = { id: number; x: number; y: number; items: NativeMenuItem[]; page_menu: boolean };
+type MenuRequest = { id: number; x: number; y: number; items: NativeMenuItem[] };
 type Panel = { x: number; y: number; opener?: HTMLButtonElement; items: ContextMenuItem[] };
 type Menu = { id: number; panel: Panel; editor: boolean };
 type CloseMenu = (command?: number | null, restoreFocus?: boolean) => void;
 
-const editorIcons = new Map([
+const menuIcons = new Map([
   ["undo", UndoIcon],
   ["redo", RedoIcon],
   ["cut", ScissorIcon],
@@ -40,20 +41,28 @@ const editorIcons = new Map([
   ["pasteAsPlainText", ClipboardPasteIcon],
   ["delete", Delete02Icon],
   ["selectAll", TextSelectIcon],
+  ["back", ArrowLeft01Icon],
+  ["refresh", RefreshIcon],
+  ["reload", RefreshIcon],
+  ["saveAs", SaveIcon],
+  ["saveImageAs", SaveIcon],
+  ["copyImage", Copy01Icon],
+  ["copyLink", Copy01Icon],
+  ["openLinkInNewWindow", LinkSquare01Icon],
 ]);
 
-function styleEditorItem(item: NativeMenuItem): ContextMenuItem {
-  const icon = editorIcons.get(item.name);
+function styleNativeItem(item: NativeMenuItem): ContextMenuItem {
+  const icon = menuIcons.get(item.name);
   return {
     ...item,
     icon: icon && <HugeiconsIcon icon={icon} size={14} aria-hidden="true" />,
     separator: item.separator_before,
-    children: item.children.map(styleEditorItem),
+    children: item.children.map(styleNativeItem),
   };
 }
 
-function complete(id: number, command: number | null, useNativeMenu = false) {
-  void invoke("complete_context_menu", { id, command, useNativeMenu }).catch(console.error);
+function complete(id: number, command: number | null) {
+  void invoke("complete_context_menu", { id, command }).catch(console.error);
 }
 
 function rememberFocus() {
@@ -89,7 +98,7 @@ export default function ContextMenu() {
     if (!isTauri() || !isWindows()) return;
     let disposed = false;
     let unlisten: (() => void) | undefined;
-    const onMenu = ({ id, x, y, items, page_menu }: MenuRequest) => {
+    const onMenu = ({ id, x, y, items }: MenuRequest) => {
       if (disposed || document.querySelector(":modal")) {
         complete(id, null);
         return;
@@ -97,20 +106,16 @@ export default function ContextMenu() {
       const scale = window.devicePixelRatio;
       const anchor = { x: x / scale, y: y / scale };
       const target = document.elementFromPoint(anchor.x, anchor.y);
-      if (target?.closest('.file-tree-row[aria-haspopup="menu"], .workspace-context-menu')) {
+      if (target?.closest('.file-tree-row[aria-haspopup="menu"], .context-menu')) {
         complete(id, null);
         return;
       }
       const editor = !!target?.closest(".cm-editor");
-      if (!page_menu && !editor && !target?.closest(".terminal-content")) {
-        complete(id, null, true);
-        return;
-      }
       if (pending.current === null) {
         previousFocus.current = rememberFocus();
       }
       pending.current = id;
-      setMenu({ id, editor, panel: { ...anchor, items: editor ? items.map(styleEditorItem) : items } });
+      setMenu({ id, editor, panel: { ...anchor, items: items.map(styleNativeItem) } });
     };
     void getCurrentWebviewWindow().listen<MenuRequest>("webview-context-menu", ({ payload }) => onMenu(payload))
       .then((stop) => {
@@ -134,16 +139,14 @@ export default function ContextMenu() {
     key={menu.id}
     panel={menu.panel}
     close={close}
-    className={menu.editor ? "workspace-context-menu" : undefined}
     label={menu.editor ? "Editor context menu" : undefined}
   />;
 }
 
-export function ContextMenuPopup({ panel, close, label = "Context menu", className = "" }: {
+export function ContextMenuPopup({ panel, close, label = "Context menu" }: {
   panel: Panel;
   close: CloseMenu;
   label?: string;
-  className?: string;
 }) {
   const [submenus, setSubmenus] = useState<Panel[]>([]);
   const panels = [panel, ...submenus];
@@ -238,7 +241,7 @@ export function ContextMenuPopup({ panel, close, label = "Context menu", classNa
       {panels.map((panel, index) => (
         <div
           key={index}
-          className={`context-menu ${className}`}
+          className="context-menu"
           role="menu"
           aria-label={panel.opener?.textContent?.trim() || label}
           tabIndex={-1}
@@ -265,7 +268,8 @@ function MenuRow({ item, index, submenu, select }: {
     {item.separator && <div role="separator" className="context-menu-separator" />}
     <button
       type="button"
-      role="menuitem"
+      role={item.choice ? `menuitem${item.choice.kind}` : "menuitem"}
+      aria-checked={item.choice?.checked}
       tabIndex={-1}
       disabled={item.enabled === false}
       className={item.destructive ? "context-menu-danger" : undefined}
@@ -274,7 +278,9 @@ function MenuRow({ item, index, submenu, select }: {
       data-index={index}
       onClick={(event) => select(event.currentTarget)}
     >
-      {item.icon}
+      {item.choice ? <span className="context-menu-check" aria-hidden="true">
+        {item.choice.checked && (item.choice.kind === "radio" ? "●" : "✓")}
+      </span> : item.icon}
       <span className="context-menu-label">{item.label}</span>
       {item.shortcut && <span className="context-menu-shortcut">{item.shortcut}</span>}
       {hasChildren && <span className="context-menu-arrow" aria-hidden="true" />}

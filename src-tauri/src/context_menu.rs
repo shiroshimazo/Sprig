@@ -24,7 +24,16 @@ struct MenuItem {
     enabled: bool,
     command: Option<i32>,
     separator_before: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    choice: Option<MenuChoice>,
     children: Vec<MenuItem>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(tag = "kind", content = "checked", rename_all = "lowercase")]
+enum MenuChoice {
+    Checkbox(bool),
+    Radio(bool),
 }
 
 #[derive(Clone, Serialize)]
@@ -33,7 +42,6 @@ struct MenuRequest {
     x: i32,
     y: i32,
     items: Vec<MenuItem>,
-    page_menu: bool,
 }
 
 struct PendingMenu {
@@ -116,6 +124,19 @@ fn menu_items(
         let mut enabled = BOOL::default();
         unsafe { item.IsEnabled(&mut enabled)? };
         let enabled = parent_enabled && enabled.as_bool();
+        let choice = match kind {
+            COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_CHECK_BOX
+            | COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_RADIO => {
+                let mut checked = BOOL::default();
+                unsafe { item.IsChecked(&mut checked)? };
+                Some(if kind == COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_RADIO {
+                    MenuChoice::Radio(checked.as_bool())
+                } else {
+                    MenuChoice::Checkbox(checked.as_bool())
+                })
+            }
+            _ => None,
+        };
 
         let (command, children) = if kind == COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND_SUBMENU {
             (
@@ -137,6 +158,7 @@ fn menu_items(
             enabled,
             command,
             separator_before: std::mem::take(&mut separator_before),
+            choice,
             children,
         });
     }
@@ -159,13 +181,6 @@ fn show_menu(
         target.IsEditable(&mut editable)?;
     }
     let page_menu = kind == COREWEBVIEW2_CONTEXT_MENU_TARGET_KIND_PAGE && !editable.as_bool();
-    if !page_menu
-        && !editable.as_bool()
-        && kind != COREWEBVIEW2_CONTEXT_MENU_TARGET_KIND_SELECTED_TEXT
-    {
-        return Ok(());
-    }
-
     let mut commands = HashSet::new();
     let items = menu_items(&collection, &mut commands, true, page_menu)?;
     if items.is_empty() {
@@ -199,7 +214,6 @@ fn show_menu(
                 x: location.x,
                 y: location.y,
                 items,
-                page_menu,
             },
         )
         .is_err()
@@ -265,15 +279,12 @@ pub(crate) fn complete_context_menu(
     window: WebviewWindow,
     id: u32,
     command: Option<i32>,
-    use_native_menu: bool,
 ) -> std::result::Result<(), String> {
     let label = window.label().to_owned();
     window
         .run_on_main_thread(move || {
             if let Some(menu) = take_pending(&label, id) {
-                let result = if use_native_menu {
-                    unsafe { menu.args.SetHandled(false) }
-                } else if let Some(command) =
+                let result = if let Some(command) =
                     command.filter(|command| menu.commands.contains(command))
                 {
                     unsafe { menu.args.SetSelectedCommandId(command) }
