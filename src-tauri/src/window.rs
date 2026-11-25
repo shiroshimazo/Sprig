@@ -1,8 +1,7 @@
-use tauri::{Manager, Url, WebviewUrl};
+use tauri::{Manager, WebviewUrl};
 
 /// Label prefix of the extra IDE windows opened from the file menu.
 pub const WINDOW_PREFIX: &str = "sprig";
-pub(crate) const BROWSER_LABEL: &str = "browser";
 
 #[cfg(windows)]
 pub(crate) fn disable_browser_reload_shortcut(webview: tauri::Webview) {
@@ -12,7 +11,7 @@ pub(crate) fn disable_browser_reload_shortcut(webview: tauri::Webview) {
     };
     use windows_core::Interface;
 
-    if webview.label() == BROWSER_LABEL {
+    if crate::browser::owns_webview(webview.label()) {
         return;
     }
     let result = webview.with_webview(|view| {
@@ -39,24 +38,6 @@ pub(crate) fn disable_browser_reload_shortcut(webview: tauri::Webview) {
     if let Err(error) = result {
         eprintln!("Cannot access webview for reload shortcut: {error}");
     }
-}
-
-#[tauri::command]
-pub(crate) async fn browser_open(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(browser) = app.get_webview_window(BROWSER_LABEL) {
-        return browser
-            .unminimize()
-            .and_then(|_| browser.set_focus())
-            .map_err(|error| error.to_string());
-    }
-    let url = Url::parse("https://www.google.com/").map_err(|error| error.to_string())?;
-    tauri::WebviewWindowBuilder::new(&app, BROWSER_LABEL, WebviewUrl::External(url))
-        .title("Sprig Browser")
-        .inner_size(1000.0, 680.0)
-        .on_navigation(|url| matches!(url.scheme(), "https" | "http"))
-        .build()
-        .map(|_| ())
-        .map_err(|error| error.to_string())
 }
 
 /// Finds a label that no other window uses yet.
@@ -94,8 +75,8 @@ pub async fn window_new(
 
 /// Closes auxiliary windows when the main IDE shuts down.
 pub fn close_all(app: &tauri::AppHandle) {
-    for (label, window) in app.webview_windows() {
-        if label.starts_with(WINDOW_PREFIX) || label == BROWSER_LABEL {
+    for (label, window) in app.windows() {
+        if label.starts_with(WINDOW_PREFIX) || label == crate::browser::WINDOW_LABEL {
             let _ = window.destroy();
         }
     }

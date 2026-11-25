@@ -10,6 +10,7 @@ import "@fontsource/cascadia-code/400-italic.css";
 import "@fontsource/cascadia-code/600.css";
 import "@fontsource/cascadia-code/600-italic.css";
 import App from "./App";
+import BrowserToolbar from "./BrowserToolbar";
 import ContextMenu from "./ContextMenu";
 import DetachedTerminal from "./DetachedTerminal";
 import { installInputCarets } from "./smoothCaret";
@@ -18,10 +19,13 @@ import "./smoothCaret.css";
 const stopInputCarets = installInputCarets();
 if (import.meta.hot) import.meta.hot.dispose(stopInputCarets);
 
-const detached = new URLSearchParams(window.location.search).get("detached");
+const params = new URLSearchParams(window.location.search);
+const detached = params.get("detached");
+const browser = params.has("browser");
+if (browser) document.title = "Browser";
 
 // Load both font subsets before xterm caches fallback widths for block art.
-const terminalFont = Promise.allSettled([
+const terminalFont = browser ? Promise.resolve() : Promise.allSettled([
   document.fonts.load('13px "Cascadia Mono"', "W\u2580\u2584\u2588\u258c\u2590"),
   document.fonts.load('600 13px "Cascadia Mono"', "W\u2580\u2584\u2588\u258c\u2590"),
 ]);
@@ -29,8 +33,10 @@ const terminalFont = Promise.allSettled([
 void terminalFont.then(() => {
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <React.StrictMode>
-      {detached ? <DetachedTerminal /> : <App />}
-      <ContextMenu />
+      {browser ? <BrowserToolbar /> : <>
+        {detached ? <DetachedTerminal /> : <App />}
+        <ContextMenu />
+      </>}
     </React.StrictMode>,
   );
 });

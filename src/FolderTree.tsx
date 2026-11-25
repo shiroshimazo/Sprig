@@ -65,6 +65,7 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
   const [renameName, setRenameName] = useState("");
   const [renameError, setRenameError] = useState("");
   const [renaming, setRenaming] = useState(false);
+  const renamingRef = useRef(false);
   const renameInput = useRef<HTMLInputElement>(null);
   const [entryName, setEntryName] = useState("");
   const [creationError, setCreationError] = useState<string | null>(null);
@@ -220,6 +221,33 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
 
   useEffect(() => { if (draft && !creating) input.current?.focus(); }, [draft, creating]);
 
+  useEffect(() => {
+    if (!draft && !rename) return;
+    const isMenu = (target: EventTarget | null) => target instanceof Element && !!target.closest(".context-menu");
+    function dismiss(from: EventTarget | null, to: EventTarget | null) {
+      // The input's context menu borrows focus until it closes.
+      if (isMenu(to)) return;
+      const fromMenu = isMenu(from);
+      if (draft && !creatingRef.current && (from === input.current || fromMenu) && to !== input.current) {
+        setDraft(null);
+        onCreationDone();
+      }
+      if (rename && !renamingRef.current && (from === renameInput.current || fromMenu) && to !== renameInput.current) {
+        setRename(null);
+      }
+    }
+    const onBlur = (event: FocusEvent) => dismiss(event.target, event.relatedTarget);
+    const onPointerDown = (event: PointerEvent) => {
+      if (isMenu(document.activeElement)) dismiss(document.activeElement, event.target);
+    };
+    document.addEventListener("focusout", onBlur);
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => {
+      document.removeEventListener("focusout", onBlur);
+      document.removeEventListener("pointerdown", onPointerDown, true);
+    };
+  }, [draft, rename, onCreationDone]);
+
   async function submitCreation() {
     if (!draft || creatingRef.current) return;
     if (!entryName.trim()) { setCreationError("Enter a name."); return; }
@@ -285,19 +313,21 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
     if (rename?.path !== entry.path) return null;
     return <form className="inline-create inline-rename" onSubmit={async (event) => {
       event.preventDefault();
-      if (renaming) return;
+      if (renamingRef.current) return;
       const tree = event.currentTarget.closest('[role="tree"]');
       if (renameName === entry.name) { finishRename(tree, false); return; }
       setRenameError("");
+      renamingRef.current = true;
       setRenaming(true);
       try {
         if (await rename.submit(renameName, setRenameError)) finishRename(tree, true);
       } finally {
+        renamingRef.current = false;
         setRenaming(false);
       }
     }} onKeyDown={(event) => {
       event.stopPropagation();
-      if (event.key === "Escape" && !renaming) {
+      if (event.key === "Escape" && !renamingRef.current) {
         event.preventDefault();
         finishRename(event.currentTarget.closest('[role="tree"]'), false);
       }

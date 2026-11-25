@@ -116,6 +116,8 @@ export function installInputCarets() {
     current = createSmoothCaret(field, () => {
       if (field.disabled || field.readOnly || field.selectionStart !== field.selectionEnd) return null;
       const style = getComputedStyle(field);
+      const zoom = field.currentCSSZoom ?? 1;
+      const bodyZoom = document.body.currentCSSZoom ?? 1;
       // Mirror the full text so wrapping, tabs, ligatures and scroll offsets match the native field.
       for (const property of ["box-sizing", "font-family", "font-size", "font-style", "font-weight", "font-variant", "font-feature-settings", "font-variation-settings", "letter-spacing", "line-height", "text-align", "text-indent", "text-transform", "direction", "tab-size", "padding-top", "padding-right", "padding-bottom", "padding-left", "border-top-width", "border-right-width", "border-bottom-width", "border-left-width"]) {
         mirror.style.setProperty(property, style.getPropertyValue(property));
@@ -125,6 +127,7 @@ export function installInputCarets() {
         position: "fixed", left: "0", top: "0", visibility: "hidden", pointerEvents: "none",
         boxSizing: "border-box", borderStyle: "solid", width: `${field.clientWidth + field.clientLeft + parseFloat(style.borderRightWidth)}px`,
         whiteSpace: multiline ? "pre-wrap" : "pre", overflowWrap: "break-word",
+        zoom: String(zoom / bodyZoom),
       });
       const index = field.selectionStart ?? 0;
       const value = field instanceof HTMLInputElement && field.type === "password" ? "\u2022".repeat(field.value.length) : field.value;
@@ -134,10 +137,10 @@ export function installInputCarets() {
       const rect = field.getBoundingClientRect();
       const point = marker.getClientRects()[0];
       if (!point) return null;
-      const height = parseFloat(style.fontSize);
+      const height = parseFloat(style.fontSize) * zoom;
       return {
-        left: rect.left + point.left - field.scrollLeft,
-        top: multiline ? rect.top + point.top - field.scrollTop : rect.top + field.clientTop + (field.clientHeight - height) / 2,
+        left: rect.left + point.left - field.scrollLeft * zoom,
+        top: multiline ? rect.top + point.top - field.scrollTop * zoom : rect.top + (field.clientTop + field.clientHeight / 2) * zoom - height / 2,
         height, color: style.color,
       };
     });

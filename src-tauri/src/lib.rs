@@ -1,3 +1,4 @@
+mod browser;
 #[cfg(windows)]
 mod context_menu;
 mod files;
@@ -22,12 +23,20 @@ pub fn run() {
         .manage(terminal::Terminals::default())
         .manage(watcher::Watchers::default())
         .on_page_load(|webview, _| {
-            if webview.label() != window::BROWSER_LABEL && let Err(error) = webview.set_zoom(1.1) {
+            if !browser::owns_webview(webview.label()) && let Err(error) = webview.set_zoom(1.1) {
                 eprintln!("Cannot set app zoom: {error}");
             }
         })
         .on_window_event(|window, event| {
-            if matches!(event, tauri::WindowEvent::Destroyed) && window.label() != window::BROWSER_LABEL {
+            if window.label() == browser::WINDOW_LABEL {
+                if matches!(event, tauri::WindowEvent::Resized(_) | tauri::WindowEvent::ScaleFactorChanged { .. })
+                    && let Err(error) = browser::resize(window)
+                {
+                    eprintln!("Cannot resize browser: {error}");
+                }
+                return;
+            }
+            if matches!(event, tauri::WindowEvent::Destroyed) {
                 #[cfg(windows)]
                 context_menu::remove(window.label());
 
@@ -74,7 +83,8 @@ pub fn run() {
             terminal::terminal_popout,
             terminal::terminal_open_external,
             window::window_new,
-            window::browser_open,
+            browser::browser_open,
+            browser::browser_control,
             files::list_directory,
             files::file_tree_action,
             watcher::watch_folder,
