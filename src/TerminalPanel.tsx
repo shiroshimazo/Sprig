@@ -2,8 +2,8 @@ import { useEffect, useImperativeHandle, useRef } from "react";
 import type { Ref } from "react";
 import { Channel, invoke, isTauri } from "@tauri-apps/api/core";
 import { emitTo, listen } from "@tauri-apps/api/event";
-import { SerializeAddon } from "@xterm/addon-serialize";
 import { createTerminalView } from "./terminalView";
+import { createTerminalSnapshot } from "./terminalSnapshot";
 import { DETACHED_LABEL, TerminalRelay } from "./terminalRelay";
 import type { TerminalEvent, OwnerEnvelope, OwnerMessage, ViewMessage } from "./terminalRelay";
 import type { TerminalIconId } from "./terminalIcons";
@@ -67,8 +67,7 @@ export default function TerminalPanel({ cwd, name, onDetachedChange, onCloseRequ
       appChanged: (icon) => iconChanged.current(icon),
     });
     const { terminal } = view;
-    const serializer = new SerializeAddon();
-    terminal.loadAddon(serializer);
+    const serialize = createTerminalSnapshot(terminal);
     const relay = new TerminalRelay((event) => {
       if (disposed) return;
       if (event.type === "output") terminal.write(new Uint8Array(event.data));
@@ -96,14 +95,14 @@ export default function TerminalPanel({ cwd, name, onDetachedChange, onCloseRequ
           relay.pause();
           terminal.write("", () => {
             if (disposed || !opening) return;
-            send({ type: "snapshot", text: serializer.serialize(), cols: terminal.cols, rows: terminal.rows, viewport: terminal.buffer.active.viewportY, exited, shellReady: view.suggestions.shellReady });
+            send({ type: "snapshot", text: serialize(), cols: terminal.cols, rows: terminal.rows, viewport: terminal.buffer.active.viewportY, exited, shellReady: view.suggestions.shellReady });
           });
         } else if (payload.type === "ready" && relay.detached && !docking) {
           // The detached window lost its views (e.g. reload). Send a fresh
           // snapshot so scrollback is never blank.
           terminal.write("", () => {
             if (disposed || !relay.detached) return;
-            send({ type: "snapshot", text: serializer.serialize(), cols: terminal.cols, rows: terminal.rows, viewport: terminal.buffer.active.viewportY, exited, shellReady: view.suggestions.shellReady });
+            send({ type: "snapshot", text: serialize(), cols: terminal.cols, rows: terminal.rows, viewport: terminal.buffer.active.viewportY, exited, shellReady: view.suggestions.shellReady });
           });
         } else if (payload.type === "attached" && opening && relay.paused) {
           clearTimeout(timeout); opening = false;
