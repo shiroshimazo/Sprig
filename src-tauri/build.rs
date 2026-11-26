@@ -9,6 +9,7 @@ fn main() {
             "create_file",
             "create_folder",
             "list_directory",
+            "list_workspace_files",
             "file_tree_action",
             "save_file",
             "terminal_start",

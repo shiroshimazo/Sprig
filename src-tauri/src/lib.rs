@@ -14,8 +14,8 @@ pub fn run() {
     let app = tauri::Builder::default();
     #[cfg(windows)]
     let app = app.plugin(
-        tauri::plugin::Builder::<_, ()>::new("reload-shortcut")
-            .on_webview_ready(window::disable_browser_reload_shortcut)
+        tauri::plugin::Builder::<_, ()>::new("ide-shortcuts")
+            .on_webview_ready(window::disable_ide_browser_shortcuts)
             .build(),
     );
 
@@ -86,6 +86,7 @@ pub fn run() {
             browser::browser_open,
             browser::browser_control,
             files::list_directory,
+            files::list_workspace_files,
             files::file_tree_action,
             watcher::watch_folder,
             watcher::unwatch_folder,

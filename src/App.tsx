@@ -22,7 +22,8 @@ import WindowControls from "./WindowControls";
 import { isWindows } from "./lib/platform";
 import TerminalTabIcon from "./TerminalTabIcon";
 import type { TerminalIconId } from "./terminalIcons";
-import { isInsideFolder } from "./filePaths";
+import { isInsideFolder, normalizePath } from "./filePaths";
+import QuickOpen from "./QuickOpen";
 import "./App.css";
 
 type TerminalTab = { id: string; name: string; cwd: string | null; icon?: TerminalIconId; detached?: boolean; sessionId?: string; detachOnReady?: boolean };
@@ -35,6 +36,7 @@ function App() {
   const [terminalHeight, setTerminalHeight] = useState(28);
   const [filePath, setFilePath] = useState<string | null>(null);
   const [openTabs, setOpenTabs] = useState<string[]>([]);
+  const [quickOpenVisible, setQuickOpenVisible] = useState(false);
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
   const [folderPath, setFolderPath] = useState<string | null>(null);
   // The last open folder is restored on startup and saved whenever it
@@ -279,6 +281,14 @@ function App() {
   const folderName = folderPath?.split(/[\\/]/).filter(Boolean).pop() ?? folderPath;
   const answer = useRef<((choice: "save" | "discard" | "cancel") => void) | null>(null);
   const guarding = useRef(false);
+
+  const showQuickOpen = useCallback(() => {
+    if (!folderPath || !isTauri() || dialogActive.current || guarding.current || changingEntry.current
+      || document.querySelector("dialog:modal")) return;
+    setFileMenuOpen(false);
+    setQuickOpenVisible(true);
+  }, [folderPath]);
+
   const saveFile = useCallback(async (requestedPath?: string) => {
     const path = requestedPath ?? activePath.current;
     const document = path ? documents.current.get(path) : undefined;
@@ -406,6 +416,17 @@ function App() {
   }, [saveFile]);
 
   useEffect(() => {
+    const handleQuickOpen = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.isComposing || event.key.toLowerCase() !== "p") return;
+      if (event.target instanceof Element && event.target.closest(".xterm")) return;
+      event.preventDefault();
+      if (!event.repeat) showQuickOpen();
+    };
+    window.addEventListener("keydown", handleQuickOpen, true);
+    return () => window.removeEventListener("keydown", handleQuickOpen, true);
+  }, [showQuickOpen]);
+
+  useEffect(() => {
     if (!fileMenuOpen) return;
     const onPointerDown = (event: PointerEvent) => {
       if (!fileMenuRef.current?.contains(event.target as Node)) setFileMenuOpen(false);
@@ -428,14 +449,22 @@ function App() {
 
   async function openFile(path: string) {
     if (changingEntry.current) return;
-    if (!openTabs.includes(path)) setOpenTabs((tabs) => [...tabs, path]);
-    await activateFile(path);
+    const normalized = normalizePath(path);
+    const existing = openTabs.find((tab) => normalizePath(tab) === normalized);
+    if (!existing) setOpenTabs((tabs) => tabs.includes(path) ? tabs : [...tabs, path]);
+    await activateFile(existing ?? path);
   }
 
   async function activateFile(path: string) {
-    if (path === activePath.current) return;
+    const request = ++readRequest.current;
+    if (path === activePath.current) {
+      setLoadingPath(null);
+      setFileError(null);
+      return;
+    }
     const cached = documents.current.get(path);
     if (cached) {
+      setLoadingPath(null);
       activePath.current = path;
       setFilePath(path);
       setFileContent(cached.current);
@@ -443,7 +472,6 @@ function App() {
       setFileError(null);
       return;
     }
-    const request = ++readRequest.current;
     setLoadingPath(path);
     setFileError(null);
     try {
@@ -570,6 +598,12 @@ function App() {
 
   return (
     <div className="ide">
+      {quickOpenVisible && folderPath && <QuickOpen
+        key={folderPath}
+        folder={folderPath}
+        onSelect={(path) => void openFile(path)}
+        onDismiss={() => setQuickOpenVisible(false)}
+      />}
       <dialog ref={prompt} className="unsaved-dialog" aria-labelledby="unsaved-title" onCancel={(event) => { event.preventDefault(); respond("cancel"); }}>
         <h2 id="unsaved-title">Save changes?</h2>
         <p>{promptPath}</p>
@@ -625,6 +659,13 @@ function App() {
                 <button role="menuitem" disabled={dialogPending} onClick={() => { setFileMenuOpen(false); void selectPath(true); }}>
                   <HugeiconsIcon icon={FolderOpenIcon} size={13} aria-hidden="true" focusable="false" />
                   Open Folder
+                </button>
+                <button role="menuitem" disabled={dialogPending || !folderPath} aria-keyshortcuts="Control+P Meta+P" title={folderPath ? "Quick Open (Ctrl+P)" : "Open a folder first"} onClick={() => {
+                  fileMenuButton.current?.focus();
+                  showQuickOpen();
+                }}>
+                  <HugeiconsIcon icon={File01Icon} size={13} aria-hidden="true" focusable="false" />
+                  Quick Open
                 </button>
                 <button role="menuitem" disabled={windowPending} onClick={() => { setFileMenuOpen(false); void openNewWindow("editor"); }}>
                   <HugeiconsIcon icon={WindowsNewIcon} size={13} aria-hidden="true" focusable="false" />

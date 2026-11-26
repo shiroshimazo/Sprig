@@ -229,6 +229,67 @@ pub async fn list_directory(
         .map_err(|e| e.to_string())?
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceFile {
+    path: PathBuf,
+    relative_path: PathBuf,
+}
+
+fn workspace_files(
+    root: &Path,
+    is_allowed: impl Fn(&Path) -> bool,
+) -> Result<Vec<WorkspaceFile>, String> {
+    let mut folders = vec![root.to_path_buf()];
+    let mut files = Vec::new();
+
+    while let Some(folder) = folders.pop() {
+        let entries = match fs::read_dir(&folder) {
+            Ok(entries) => entries,
+            Err(error) if folder == root => return Err(format!("Cannot list folder: {error}")),
+            Err(_) => continue,
+        };
+        for entry in entries.flatten() {
+            let Ok(kind) = entry.file_type() else { continue };
+            if kind.is_symlink() {
+                continue;
+            }
+            let path = entry.path();
+            if kind.is_dir() {
+                if matches!(entry.file_name().to_str(), Some(".git" | "node_modules")) {
+                    continue;
+                }
+                if is_allowed(&path) {
+                    folders.push(path);
+                }
+            } else if kind.is_file() && path.to_str().is_some() && is_allowed(&path) {
+                let relative_path = path
+                    .strip_prefix(root)
+                    .expect("entry under workspace root")
+                    .to_path_buf();
+                files.push(WorkspaceFile { path, relative_path });
+            }
+        }
+    }
+
+    files.sort_unstable_by(|a, b| a.relative_path.cmp(&b.relative_path));
+    Ok(files)
+}
+
+#[tauri::command]
+pub async fn list_workspace_files(
+    app: tauri::AppHandle,
+    path: PathBuf,
+) -> Result<Vec<WorkspaceFile>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = authorized_path(&app, &path)?;
+        let scope = app.fs_scope();
+        workspace_files(&root, |entry| scope.is_allowed(entry))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum FileTreeAction {
@@ -426,6 +487,33 @@ pub async fn file_tree_action(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn quick_open_lists_scoped_files_in_unexpanded_folders() {
+        let workspace = tempfile::tempdir().unwrap();
+        let root = workspace.path();
+        for folder in ["nested", ".git", "node_modules", "private"] {
+            fs::create_dir(root.join(folder)).unwrap();
+            fs::write(root.join(folder).join("same.txt"), "").unwrap();
+        }
+        fs::write(root.join("same.txt"), "").unwrap();
+        fs::write(root.join("hidden.txt"), "").unwrap();
+        #[cfg(unix)]
+        {
+            let external = tempfile::tempdir().unwrap();
+            fs::write(external.path().join("outside.txt"), "").unwrap();
+            std::os::unix::fs::symlink(external.path(), root.join("link")).unwrap();
+            assert_eq!(workspace_files(root, |_| true).unwrap().len(), 4);
+        }
+
+        let files = workspace_files(root, |path| {
+            !path.starts_with(root.join("private")) && path != root.join("hidden.txt")
+        }).unwrap();
+        let relative: Vec<_> = files.iter().map(|file| file.relative_path.clone()).collect();
+        assert_eq!(relative, [Path::new("nested").join("same.txt"), PathBuf::from("same.txt")]);
+        assert!(files.iter().all(|file| file.path == root.join(&file.relative_path)));
+        assert!(workspace_files(&root.join("same.txt"), |_| true).is_err());
+    }
 
     #[test]
     fn tree_copy_preserves_contents_and_never_replaces_an_existing_item() {

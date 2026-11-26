@@ -4,7 +4,7 @@ use tauri::{Manager, WebviewUrl};
 pub const WINDOW_PREFIX: &str = "sprig";
 
 #[cfg(windows)]
-pub(crate) fn disable_browser_reload_shortcut(webview: tauri::Webview) {
+pub(crate) fn disable_ide_browser_shortcuts(webview: tauri::Webview) {
     use webview2_com::{
         AcceleratorKeyPressedEventHandler,
         Microsoft::Web::WebView2::Win32::ICoreWebView2AcceleratorKeyPressedEventArgs2,
@@ -19,8 +19,8 @@ pub(crate) fn disable_browser_reload_shortcut(webview: tauri::Webview) {
             if let Some(args) = args {
                 let mut key = 0;
                 unsafe { args.VirtualKey(&mut key)? };
-                if key == u32::from(b'R') {
-                    // Let Ctrl+R reach the sidebar shortcut or shell input.
+                if key == u32::from(b'R') || key == u32::from(b'P') {
+                    // Let reload and Quick Open reach the IDE or shell input.
                     let args = args.cast::<ICoreWebView2AcceleratorKeyPressedEventArgs2>()?;
                     unsafe { args.SetIsBrowserAcceleratorKeyEnabled(false)? };
                 }
@@ -32,11 +32,11 @@ pub(crate) fn disable_browser_reload_shortcut(webview: tauri::Webview) {
             view.controller()
                 .add_AcceleratorKeyPressed(&handler, &mut token)
         } {
-            eprintln!("Cannot register reload shortcut: {error}");
+            eprintln!("Cannot register IDE shortcuts: {error}");
         }
     });
     if let Err(error) = result {
-        eprintln!("Cannot access webview for reload shortcut: {error}");
+        eprintln!("Cannot access webview for IDE shortcuts: {error}");
     }
 }
 
