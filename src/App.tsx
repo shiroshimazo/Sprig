@@ -8,7 +8,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { animate } from "animejs";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowUpRightIcon, CommandLineIcon, File01Icon, Folder01Icon, FolderOpenIcon, GitBranchIcon, Globe02Icon, Menu01Icon, MultiplicationSignIcon, PlusSignIcon, SaveIcon, SidebarLeftIcon, TerminalIcon, WindowsNewIcon } from "@hugeicons/core-free-icons";
+import { ArrowUpRightIcon, CommandLineIcon, File01Icon, FilePlusIcon, Folder01Icon, FolderOpenIcon, FolderPlusIcon, GitBranchIcon, Globe02Icon, Menu01Icon, MultiplicationSignIcon, PlusSignIcon, SaveIcon, SidebarLeftIcon, TerminalIcon, WindowsNewIcon } from "@hugeicons/core-free-icons";
 import { beyondDragThreshold, isOutsideWindow, type WindowBounds } from "./terminalDrag";
 import ResizeHandle from "./ResizeHandle";
 import FolderTree from "./FolderTree";
@@ -664,8 +664,12 @@ function App() {
           <div className="panel-header">
             <h2 id="files-heading">{sidebarMode === "files" ? "Files" : "Source Control"}</h2>
             {sidebarMode === "files" && <div className="creation-actions">
-              <button disabled={!folderPath} title="New file" aria-label="New file" onClick={() => startCreation("file")}><HugeiconsIcon icon={PlusSignIcon} size={13} aria-hidden="true" /> File</button>
-              <button disabled={!folderPath} title="New folder" aria-label="New folder" onClick={() => startCreation("folder")}><HugeiconsIcon icon={PlusSignIcon} size={13} aria-hidden="true" /> Folder</button>
+              <button type="button" disabled={!folderPath} title="New file" aria-label="New file" onClick={() => startCreation("file")}>
+                <HugeiconsIcon icon={FilePlusIcon} size={16} aria-hidden="true" focusable="false" />
+              </button>
+              <button type="button" disabled={!folderPath} title="New folder" aria-label="New folder" onClick={() => startCreation("folder")}>
+                <HugeiconsIcon icon={FolderPlusIcon} size={16} aria-hidden="true" focusable="false" />
+              </button>
             </div>}
           </div>
           <div className="sidebar-content">

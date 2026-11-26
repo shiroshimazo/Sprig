@@ -5,6 +5,7 @@ import { terminalBackground, terminalDefaultBackground } from "./terminalBackgro
 import { createTerminalSuggestions } from "./terminalSuggestions";
 import { isTerminalIcon } from "./terminalIcons";
 import { createSmoothCaret } from "./smoothCaret";
+import { editorColors } from "./editorColors";
 import type { TerminalIconId } from "./terminalIcons";
 import "@xterm/xterm/css/xterm.css";
 
@@ -26,7 +27,29 @@ export function createTerminalView(element: HTMLElement, handlers: {
     smoothScrollDuration: motion.matches ? 0 : 120,
     fontFamily: FONT_FAMILY, fontSize: 13, lineHeight: 1,
     cursorBlink: false, disableStdin: true,
-    theme: { background: themeBackground, foreground: "#e5e5e5", cursor: "#e5e5e5", selectionBackground: "#404040" },
+    theme: {
+      background: themeBackground,
+      foreground: editorColors.foreground,
+      cursor: editorColors.cursor,
+      cursorAccent: themeBackground,
+      selectionBackground: editorColors.selection,
+      black: "#282c34",
+      red: editorColors.red,
+      green: editorColors.green,
+      yellow: editorColors.yellow,
+      blue: editorColors.blue,
+      magenta: editorColors.magenta,
+      cyan: editorColors.cyan,
+      white: editorColors.foreground,
+      brightBlack: "#7f848e",
+      brightRed: "#ef8a92",
+      brightGreen: "#b1d795",
+      brightYellow: "#f3d298",
+      brightBlue: "#83c5ff",
+      brightMagenta: "#d89aeb",
+      brightCyan: "#76ced7",
+      brightWhite: editorColors.cursor,
+    },
   });
   const updateMotion = () => { terminal.options.smoothScrollDuration = motion.matches ? 0 : 120; };
   motion.addEventListener("change", updateMotion);
@@ -50,7 +73,7 @@ export function createTerminalView(element: HTMLElement, handlers: {
     const cursor = element.querySelector(".xterm-cursor");
     if (!cursor) return null;
     const rect = cursor.getBoundingClientRect();
-    return { left: rect.left, top: rect.top, height: rect.height, color: terminal.options.theme?.cursor || "#e5e5e5" };
+    return { left: rect.left, top: rect.top, height: rect.height, color: terminal.options.theme?.cursor || editorColors.cursor };
   }, (hidden) => { if (hidden) hideCursor(); else restoreCursor(); });
   const cursorFrame = terminal.onRender(() => {
     if (element.classList.contains("smooth-caret-active")) hideCursor();
