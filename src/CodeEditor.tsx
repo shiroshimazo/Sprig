@@ -68,17 +68,17 @@ function languageFor(path: string) {
   }
 }
 
-export default function CodeEditor({ content, path, onChange, onPositionChange, invalidated }: { content: string; path: string; onChange: (content: string) => void; onPositionChange: (position: { line: number; column: number }) => void; invalidated: { paths: string[] } | null }) {
+export default function CodeEditor({ content, path, onChange, onPositionChange, invalidated }: { content: string; path: string | null; onChange: (content: string) => void; onPositionChange: (position: { line: number; column: number }) => void; invalidated: { paths: string[] } | null }) {
   const container = useRef<HTMLDivElement>(null);
   const lastInvalidation = useRef(invalidated);
   const sessions = useRef(new Map<string, { state: EditorState; top: number; left: number }>());
 
   useEffect(() => {
-    if (!container.current) return;
     if (invalidated && invalidated !== lastInvalidation.current) {
       for (const file of invalidated.paths) sessions.current.delete(file);
     }
     lastInvalidation.current = invalidated;
+    if (!container.current || !path) return;
     const cached = sessions.current.get(path);
     const lineEndings = preserveLineEndings(content);
     const view = new EditorView({
@@ -161,5 +161,5 @@ export default function CodeEditor({ content, path, onChange, onPositionChange, 
     };
   }, [content, path, onChange, onPositionChange, invalidated]);
 
-  return <div className="code-editor" ref={container} />;
+  return <div className="code-editor" ref={container} hidden={!path} />;
 }

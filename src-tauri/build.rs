@@ -6,6 +6,7 @@ fn main() {
             "git_action",
             "git_status",
             "read_file",
+            "read_image",
             "create_file",
             "create_folder",
             "list_directory",

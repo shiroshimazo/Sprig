@@ -73,6 +73,7 @@ pub fn run() {
             git::git_action,
             git::git_status,
             files::read_file,
+            files::read_image,
             files::create_file,
             files::create_folder,
             files::save_file,

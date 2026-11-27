@@ -22,6 +22,7 @@
     "allow-git-action",
     "allow-git-status",
     "allow-read-file",
+    "allow-read-image",
     "allow-save-file",
     "allow-terminal-start",
     "allow-terminal-write",

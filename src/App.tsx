@@ -14,6 +14,8 @@ import ResizeHandle from "./ResizeHandle";
 import FolderTree from "./FolderTree";
 import FileTypeIcon from "./FileTypeIcon";
 import CodeEditor from "./CodeEditor";
+import ImagePreview from "./ImagePreview";
+import { imageMediaType } from "./imageFormats";
 import TerminalPanel from "./TerminalPanel";
 import type { TerminalPanelHandle } from "./TerminalPanel";
 import { SourceControl, CommitHistory, useSourceControl } from "./SourceControl";
@@ -259,6 +261,9 @@ function App() {
   const fileMenuRef = useRef<HTMLDivElement>(null);
   const fileMenuButton = useRef<HTMLButtonElement>(null);
   const [fileContent, setFileContent] = useState("");
+  const [showImageSource, setShowImageSource] = useState(false);
+  const imageType = filePath ? imageMediaType(filePath) : undefined;
+  const previewType = showImageSource ? undefined : imageType;
   const [, setContentRevision] = useState(0);
   const documents = useRef(new Map<string, { saved: string; current: string }>());
   const activePath = useRef<string | null>(null);
@@ -410,12 +415,12 @@ function App() {
     const handleSave = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
         event.preventDefault();
-        void saveFile();
+        if (!previewType) void saveFile();
       }
     };
     window.addEventListener("keydown", handleSave);
     return () => window.removeEventListener("keydown", handleSave);
-  }, [saveFile]);
+  }, [previewType, saveFile]);
 
   useEffect(() => {
     const handleQuickOpen = (event: KeyboardEvent) => {
@@ -457,33 +462,28 @@ function App() {
     await activateFile(existing ?? path);
   }
 
-  async function activateFile(path: string) {
+  async function activateFile(path: string, viewSource?: boolean) {
     const request = ++readRequest.current;
-    if (path === activePath.current) {
+    if (path === activePath.current && viewSource === undefined) {
       setLoadingPath(null);
       setFileError(null);
       return;
     }
-    const cached = documents.current.get(path);
-    if (cached) {
-      setLoadingPath(null);
-      activePath.current = path;
-      setFilePath(path);
-      setFileContent(cached.current);
-      setContentRevision((revision) => revision + 1);
-      setFileError(null);
-      return;
-    }
-    setLoadingPath(path);
+    const preview = !viewSource && imageMediaType(path) !== undefined;
+    let document = preview ? undefined : documents.current.get(path);
+    setLoadingPath(preview || document ? null : path);
     setFileError(null);
     try {
-      const content = await invoke<string>("read_file", { path });
-      if (request !== readRequest.current) return;
-      const document = { saved: content, current: content };
-      documents.current.set(path, document);
+      if (!preview && !document) {
+        const content = await invoke<string>("read_file", { path });
+        if (request !== readRequest.current) return;
+        document = { saved: content, current: content };
+        documents.current.set(path, document);
+      }
       activePath.current = path;
       setFilePath(path);
-      setFileContent(content);
+      setFileContent(document?.current ?? "");
+      setShowImageSource(viewSource === true);
       setContentRevision((revision) => revision + 1);
     } catch (error) {
       if (request === readRequest.current) {
@@ -497,6 +497,10 @@ function App() {
   async function closeTab(path: string) {
     const leaving = await confirmLeaving([path]);
     if (!leaving) return;
+    if (loadingPath === path) {
+      readRequest.current++;
+      setLoadingPath(null);
+    }
     const index = openTabs.indexOf(path);
     const next = openTabs.filter((tab) => tab !== path);
     setOpenTabs(next);
@@ -650,7 +654,7 @@ function App() {
                   <HugeiconsIcon icon={Folder01Icon} size={13} aria-hidden="true" focusable="false" />
                   New Folder
                 </button>
-                <button role="menuitem" disabled={!filePath || savePending} onClick={() => { setFileMenuOpen(false); void saveFile(); }}>
+                <button role="menuitem" disabled={!filePath || !!previewType || savePending} onClick={() => { setFileMenuOpen(false); void saveFile(); }}>
                   <HugeiconsIcon icon={SaveIcon} size={13} aria-hidden="true" focusable="false" />
                   {savePending ? "Saving..." : "Save"}
                 </button>
@@ -794,7 +798,12 @@ function App() {
                   })}
                 </div>
               )}
-              {filePath && <span className="cursor-position" aria-label={`Line ${cursorPosition.line}, column ${cursorPosition.column}`}>Ln {cursorPosition.line}, Col {cursorPosition.column}</span>}
+              {filePath && imageType === "image/svg+xml" && (
+                <button className="image-view-toggle" type="button" disabled={loadingPath === filePath} onClick={() => void activateFile(filePath, !!previewType)}>
+                  {previewType ? "Show Source" : "Show Preview"}
+                </button>
+              )}
+              {filePath && !previewType && <span className="cursor-position" aria-label={`Line ${cursorPosition.line}, column ${cursorPosition.column}`}>Ln {cursorPosition.line}, Col {cursorPosition.column}</span>}
             </div>
             {loadingPath && <p className="file-message" role="status">Opening {loadingPath}...</p>}
             {fileError && (
@@ -810,7 +819,10 @@ function App() {
               </div>
             )}
             {filePath ? (
-              <CodeEditor content={fileContent} path={filePath} onChange={updateContent} onPositionChange={setCursorPosition} invalidated={invalidated} />
+              <>
+                <CodeEditor content={fileContent} path={previewType ? null : filePath} onChange={updateContent} onPositionChange={setCursorPosition} invalidated={invalidated} />
+                {previewType && <ImagePreview key={filePath} path={filePath} mediaType={previewType} source={previewType === "image/svg+xml" ? documents.current.get(filePath)?.current : undefined} />}
+              </>
             ) : (
               <div className="editor-empty">
                 <h2>No file open</h2>

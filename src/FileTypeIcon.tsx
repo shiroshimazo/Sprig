@@ -25,12 +25,14 @@ import {
   Xml01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { imageMediaType } from "./imageFormats";
 
 type IconStyle = readonly [icon: typeof File01Icon, color: string];
 
 const configFile = [FileCogIcon, "#a6b5cc"] as const;
 const scriptFile = [TerminalIcon, "#85c97a"] as const;
 const gitFile = [GitBranchIcon, "#f17c60"] as const;
+const imageFile = [FileImageIcon, "#a9a0f5"] as const;
 
 const types = [
   [Html5Icon, "#e34f26", ["html", "htm", "xhtml"]],
@@ -53,7 +55,6 @@ const types = [
   [FileTextIcon, "#8bbbe8", ["md", "mdx", "txt", "rst", "log"]],
   [Pdf01Icon, "#f17c86", ["pdf"]],
   [FileSpreadsheetIcon, "#6bc99c", ["csv", "tsv", "xls", "xlsx", "ods"]],
-  [FileImageIcon, "#a9a0f5", ["png", "jpg", "jpeg", "gif", "svg", "webp", "ico", "bmp", "avif"]],
   [FileAudioIcon, "#e3a0cd", ["mp3", "wav", "ogg", "flac", "m4a"]],
   [FileVideoIcon, "#c395ed", ["mp4", "webm", "mov", "mkv"]],
   [FileZipIcon, "#d7b07a", ["zip", "tar", "gz", "7z", "rar"]],
@@ -80,6 +81,7 @@ export default function FileTypeIcon({ name }: { name: string }) {
   const extension = dot > 0 ? filename.slice(dot + 1) : "";
   const [icon, color] = stylesByName.get(filename)
     ?? (filename.startsWith(".env.") ? configFile : stylesByExtension.get(extension))
+    ?? (imageMediaType(filename) ? imageFile : undefined)
     ?? [File01Icon, "currentColor"];
 
   return <HugeiconsIcon icon={icon} color={color} size={13} aria-hidden="true" focusable="false" />;

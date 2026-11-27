@@ -7,6 +7,7 @@ use std::{
 use tauri_plugin_fs::FsExt;
 
 const MAX_FILE_BYTES: u64 = 10 * 1024 * 1024;
+const MAX_IMAGE_BYTES: u64 = 32 * 1024 * 1024;
 
 fn create_empty_file(path: &Path) -> Result<(), String> {
     fs::OpenOptions::new()
@@ -163,7 +164,7 @@ pub(crate) fn authorized_path(app: &tauri::AppHandle, path: &Path) -> Result<Pat
     Ok(resolved)
 }
 
-fn read_text(path: &Path) -> Result<String, String> {
+fn read_bytes(path: &Path, limit: u64) -> Result<Vec<u8>, String> {
     let file = fs::File::open(path).map_err(|e| format!("Cannot open file: {e}"))?;
     let metadata = file
         .metadata()
@@ -171,16 +172,27 @@ fn read_text(path: &Path) -> Result<String, String> {
     if !metadata.is_file() {
         return Err("Select a regular file.".into());
     }
-    if metadata.len() > MAX_FILE_BYTES {
-        return Err("Files larger than 10 MiB are not supported yet.".into());
+    let too_large = || {
+        format!(
+            "Files larger than {} MiB are not supported yet.",
+            limit / (1024 * 1024)
+        )
+    };
+    if metadata.len() > limit {
+        return Err(too_large());
     }
     let mut bytes = Vec::new();
-    file.take(MAX_FILE_BYTES + 1)
+    file.take(limit + 1)
         .read_to_end(&mut bytes)
         .map_err(|e| format!("Cannot read file: {e}"))?;
-    if bytes.len() as u64 > MAX_FILE_BYTES {
-        return Err("Files larger than 10 MiB are not supported yet.".into());
+    if bytes.len() as u64 > limit {
+        return Err(too_large());
     }
+    Ok(bytes)
+}
+
+fn read_text(path: &Path) -> Result<String, String> {
+    let bytes = read_bytes(path, MAX_FILE_BYTES)?;
     if bytes
         .iter()
         .any(|byte| matches!(byte, 0..=8 | 11 | 14..=31 | 127))
@@ -217,6 +229,15 @@ pub async fn read_file(app: tauri::AppHandle, path: PathBuf) -> Result<String, S
     tauri::async_runtime::spawn_blocking(move || read_text(&authorized_path(&app, &path)?))
         .await
         .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn read_image(app: tauri::AppHandle, path: PathBuf) -> Result<tauri::ipc::Response, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        read_bytes(&authorized_path(&app, &path)?, MAX_IMAGE_BYTES).map(tauri::ipc::Response::new)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -487,6 +508,22 @@ pub async fn file_tree_action(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn image_reads_preserve_binary_bytes_and_enforce_the_limit() {
+        let folder = tempfile::tempdir().unwrap();
+        let path = folder.path().join("image.png");
+        let bytes = [0x89, b'P', b'N', b'G', 0, 255];
+        fs::write(&path, bytes).unwrap();
+        assert_eq!(read_bytes(&path, MAX_IMAGE_BYTES).unwrap(), bytes);
+        assert!(read_text(&path).is_err());
+
+        fs::File::create(&path)
+            .unwrap()
+            .set_len(MAX_IMAGE_BYTES + 1)
+            .unwrap();
+        assert!(read_bytes(&path, MAX_IMAGE_BYTES).unwrap_err().contains("32 MiB"));
+    }
 
     #[test]
     fn quick_open_lists_scoped_files_in_unexpanded_folders() {
