@@ -32,6 +32,8 @@ export interface SharedLayoutBgProps
   children: ReactNode;
   /** Extra class applied to the moving pill. */
   pillClassName?: string;
+  /** Extra class applied to the pill on a child marked data-selected. */
+  selectedPillClassName?: string;
   /** Horizontal inset of the pill relative to each row (px). Default 0. */
   inset?: number;
   /** Optional positioning override for the pill wrapper inside each item. */
@@ -59,6 +61,7 @@ export const SharedLayoutBg = forwardRef<HTMLElement, SharedLayoutBgProps>(
       onMouseLeave,
       onBlur,
       pillClassName,
+      selectedPillClassName,
       pillContainerClassName,
       inset = 0,
       ...props
@@ -79,6 +82,7 @@ export const SharedLayoutBg = forwardRef<HTMLElement, SharedLayoutBgProps>(
           className?: string;
           onMouseEnter?: () => void;
           onFocus?: (event: FocusEvent<HTMLElement>) => void;
+          "data-selected"?: boolean;
           children?: ReactNode;
         }>;
         const childKey = el.key ? String(el.key) : `item-${index}`;
@@ -121,6 +125,19 @@ export const SharedLayoutBg = forwardRef<HTMLElement, SharedLayoutBgProps>(
                 </motion.div>
               ) : null}
             </AnimatePresence>
+            {selectedPillClassName && el.props["data-selected"] && (
+              <div
+                aria-hidden="true"
+                className={cn("beui-pill-anchor", pillContainerClassName)}
+                style={{ left: -inset, right: -inset }}
+              >
+                <motion.div
+                  layoutId={reduce ? undefined : `selected-bg-${uid}`}
+                  transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
+                  className={cn("beui-pill", selectedPillClassName)}
+                />
+              </div>
+            )}
             <div className="beui-item-inner">{el.props.children}</div>
           </>,
         );

@@ -347,6 +347,7 @@ export function FileTree({
       aria-multiselectable="false"
       inset={0}
       pillClassName="file-tree-pill"
+      selectedPillClassName="file-tree-selection"
       className={cn("min-w-0", className, classNames?.tree)}
     >
       {rows.map((row) => {
@@ -364,6 +365,7 @@ export function FileTree({
             <motion.div
               layout={reduce ? false : "position"}
               key={row.item.value}
+              data-selected={isSelected || undefined}
               initial={reduce ? false : { opacity: 0, y: -6 }}
               animate={{
                 opacity: row.item.disabled ? 0.42 : 1,

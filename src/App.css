@@ -511,11 +511,23 @@ p {
   cursor: default;
 }
 
-.file-tree-row--selected,
-.file-tree-row--selected:hover {
+.file-tree-row--selected {
   color: var(--text);
-  background: var(--control);
-  font-weight: 500;
+  font-weight: 600;
+}
+
+.file-tree-selection {
+  position: relative;
+}
+
+.file-tree-selection::before {
+  content: "";
+  position: absolute;
+  inset-block: 3px;
+  inset-inline-start: 6px;
+  width: 3px;
+  border-radius: 3px;
+  background: #2563eb;
 }
 
 .file-tree-branch {
