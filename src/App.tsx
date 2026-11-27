@@ -606,11 +606,11 @@ function App() {
         onSelect={(path) => void openFile(path)}
         onDismiss={() => setQuickOpenVisible(false)}
       />}
-      <dialog ref={prompt} className="unsaved-dialog" aria-labelledby="unsaved-title" onCancel={(event) => { event.preventDefault(); respond("cancel"); }}>
+      <dialog ref={prompt} className="app-dialog confirmation-dialog" aria-labelledby="unsaved-title" onCancel={(event) => { event.preventDefault(); respond("cancel"); }}>
         <h2 id="unsaved-title">Save changes?</h2>
         <p>{promptPath}</p>
         <p>Save your edits or discard them before continuing.</p>
-        <div>
+        <div className="confirmation-dialog-actions">
           <button onClick={() => respond("save")}>Save</button>
           <button onClick={() => respond("discard")}>Discard</button>
           <button autoFocus onClick={() => respond("cancel")}>Cancel</button>

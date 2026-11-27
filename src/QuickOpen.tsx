@@ -68,7 +68,7 @@ export default function QuickOpen({ folder, onSelect, onDismiss }: {
   }
 
   return (
-    <dialog ref={dialog} className="quick-open" aria-labelledby="quick-open-label" onCancel={(event) => {
+    <dialog ref={dialog} className="app-dialog quick-open" aria-labelledby="quick-open-label" onCancel={(event) => {
       event.preventDefault();
       dismiss();
     }}>

@@ -47,8 +47,15 @@ body {
 .inline-create p { margin: 5px 0; font-size: 12px; color: #fda4af; overflow-wrap: anywhere; }
 .inline-rename { padding-inline-start: 28px; }
 
-.unsaved-dialog {
+.app-dialog {
   width: min(440px, calc(100vw - 32px));
+  height: min(240px, calc(100dvh - 32px));
+  max-width: none;
+  max-height: none;
+  overscroll-behavior: contain;
+}
+
+.confirmation-dialog {
   padding: 24px;
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -56,15 +63,24 @@ body {
   color: var(--text);
 }
 
-.unsaved-dialog::backdrop { background: #000a; }
-.unsaved-dialog h2 { font-size: 13px; }
-.unsaved-dialog p { margin-top: 12px; overflow-wrap: anywhere; }
-.unsaved-dialog > div { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
-.unsaved-dialog button { padding: 8px 12px; border: 1px solid #555; border-radius: 4px; background: var(--control); color: var(--text); cursor: pointer; }
-
-.file-tree-dialog { overflow-wrap: anywhere; }
-.file-tree-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
-.file-tree-dialog button:disabled { opacity: 0.5; cursor: default; }
+.confirmation-dialog[open],
+.confirmation-dialog form { display: flex; flex-direction: column; }
+.confirmation-dialog form { flex: 1; }
+.confirmation-dialog::backdrop { background: #000a; }
+.confirmation-dialog h2 { font-size: 13px; }
+.confirmation-dialog p { margin-top: 12px; overflow-wrap: anywhere; }
+.confirmation-dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: auto; padding-top: 24px; }
+.confirmation-dialog-actions button { padding: 8px 12px; border: 1px solid #555; border-radius: 4px; background: var(--control); color: var(--text); cursor: pointer; }
+.confirmation-dialog-actions button:disabled { opacity: 0.5; cursor: default; }
+.confirmation-dialog-actions .delete-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: #b91c1c;
+  color: #fff;
+}
+.confirmation-dialog-actions .delete-confirm:not(:disabled):hover { background: #c52222; }
 .file-tree-action-error, .file-tree-action-status { padding: 0 8px; overflow-wrap: anywhere; }
 .file-tree-action-error { color: #fca5a5; }
 
@@ -692,6 +708,9 @@ p {
   justify-content: center;
   margin-top: 12px;
 }
+
+.empty-actions > button { border: 0; background: var(--control); }
+.empty-actions > button:not(:disabled):hover { background: var(--border); }
 
 .terminal {
   background: var(--background);

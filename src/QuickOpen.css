@@ -1,5 +1,4 @@
 .quick-open {
-  width: min(560px, calc(100vw - 32px));
   margin: min(12vh, 80px) auto auto;
   padding: 8px;
   border: 1px solid #414141;
@@ -8,6 +7,8 @@
   color: var(--text);
   box-shadow: 0 8px 24px #000a;
 }
+
+.quick-open[open] { display: flex; flex-direction: column; }
 
 .quick-open::backdrop { background: #0006; }
 
@@ -48,10 +49,11 @@
 .quick-open-header button:hover { background: #303030; }
 
 .quick-open ul {
-  max-height: min(390px, 55vh);
+  min-height: 0;
   margin: 6px 0 0;
   padding: 0;
   overflow: auto;
+  overscroll-behavior: contain;
   list-style: none;
 }
 

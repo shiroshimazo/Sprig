@@ -136,7 +136,7 @@ export default function FileTreeMenu({ root, target, dismiss, changeEntry, onCha
       label={`Actions for ${target.entry.name}`}
     />}
     {busy && !deleteEntry && <p className="file-tree-action-status" role="status">Working…</p>}
-    {deleteEntry && <dialog ref={dialog} className="unsaved-dialog file-tree-dialog" aria-labelledby="tree-action-title" onCancel={(event) => {
+    {deleteEntry && <dialog ref={dialog} className="app-dialog confirmation-dialog" aria-labelledby="tree-action-title" onCancel={(event) => {
       event.preventDefault();
       if (!running.current) { setDeleteEntry(null); setError(""); }
     }}>
@@ -147,9 +147,12 @@ export default function FileTreeMenu({ root, target, dismiss, changeEntry, onCha
         <h2 id="tree-action-title">Move to Trash?</h2>
         <p>{deleteEntry.name}</p>
         {error && <p className="file-tree-action-error" role="alert">{error}</p>}
-        <div className="file-tree-dialog-actions">
+        <div className="confirmation-dialog-actions">
           <button type="button" ref={cancel} disabled={busy} onClick={() => { setDeleteEntry(null); setError(""); }}>Cancel</button>
-          <button type="submit" disabled={busy}>{busy ? "Working…" : "Move to Trash"}</button>
+          <button className="delete-confirm" type="submit" disabled={busy}>
+            <HugeiconsIcon icon={Delete02Icon} size={16} aria-hidden="true" />
+            {busy ? "Working…" : "Move to Trash"}
+          </button>
         </div>
       </form>
     </dialog>}
