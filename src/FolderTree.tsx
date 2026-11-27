@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { FileTree, FileTreeFile, FileTreeFolder } from "./components/motion/file-tree";
+import { toast } from "./components/ui/toast-stack";
 import FileTypeIcon from "./FileTypeIcon";
 import FileTreeMenu, { type ChangeTreeEntry, type FileTreeMenuTarget } from "./FileTreeMenu";
 import { isInsideFolder } from "./filePaths";
@@ -256,6 +257,7 @@ export default function FolderTree({ path, name = path, activePath, onOpenFile, 
     setCreationError(null);
     try {
       const created = await invoke<string>(draft.kind === "file" ? "create_file" : "create_folder", { parent: draft.parent, name: entryName });
+      toast.success(draft.kind === "file" ? "File created" : "Folder created", entryName);
       if (pending.current.has(draft.parent)) reload.current.add(draft.parent);
       else await load(draft.parent);
       setDraft(null);

@@ -10,6 +10,7 @@ import "@fontsource/cascadia-code/400-italic.css";
 import "@fontsource/cascadia-code/600.css";
 import "@fontsource/cascadia-code/600-italic.css";
 import App from "./App";
+import { Toaster } from "./components/ui/toast-stack";
 import BrowserToolbar from "./BrowserToolbar";
 import ContextMenu from "./ContextMenu";
 import DetachedTerminal from "./DetachedTerminal";
@@ -34,7 +35,12 @@ void terminalFont.then(() => {
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <React.StrictMode>
       {browser ? <BrowserToolbar /> : <>
-        {detached ? <DetachedTerminal /> : <App />}
+        {detached ? <DetachedTerminal /> : (
+          <>
+            <App />
+            <Toaster />
+          </>
+        )}
         <ContextMenu />
       </>}
     </React.StrictMode>,

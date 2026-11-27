@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { normalizePath, isInsideFolder, stripVerbatimPrefix } from "../src/filePaths.ts";
+import { fileName, normalizePath, isInsideFolder, stripVerbatimPrefix } from "../src/filePaths.ts";
+
+test("fileName uses native separators and preserves the filename", () => {
+  assert.equal(fileName("/workspace/My File.txt"), "My File.txt");
+  if (process.platform === "win32") {
+    assert.equal(fileName("\\\\?\\C:\\workspace\\My File.txt"), "My File.txt");
+  } else {
+    assert.equal(fileName("/workspace/name\\literal"), "name\\literal");
+  }
+});
 
 test("normalizePath strips the verbatim prefix and matches the plain path", () => {
   assert.equal(normalizePath("\\\\?\\C:\\repo\\src"), normalizePath("C:\\repo\\src"));

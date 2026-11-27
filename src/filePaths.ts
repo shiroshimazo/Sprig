@@ -16,6 +16,10 @@ export function stripVerbatimPrefix(path: string): string {
   return path.startsWith(LONG_PREFIX) ? path.slice(LONG_PREFIX.length) : path;
 }
 
+export function fileName(path: string): string {
+  return path.split(isWindows() ? /[\\/]/ : "/").pop() ?? path;
+}
+
 /**
  * Brings a path into one comparable shape: the "\\?\" prefix Windows APIs
  * add is stripped, "/" becomes "\", trailing separators are dropped (a drive

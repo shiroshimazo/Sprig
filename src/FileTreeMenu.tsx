@@ -4,7 +4,8 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { ClipboardPasteIcon, Copy01Icon, CopyPlusIcon, Delete02Icon, Edit01Icon, FolderOpenIcon, LinkSquare01Icon, ScissorIcon } from "@hugeicons/core-free-icons";
 import { ContextMenuPopup, type ContextMenuItem } from "./ContextMenu";
 import type { FileEntry } from "./FolderTree";
-import { isInsideFolder, stripVerbatimPrefix } from "./filePaths";
+import { fileName, isInsideFolder, stripVerbatimPrefix } from "./filePaths";
+import { toast } from "./components/ui/toast-stack";
 
 export type FileTreeMenuTarget = { entry: FileEntry; x: number; y: number; opener: HTMLButtonElement };
 export type ChangeTreeEntry = (path: string, operation: () => Promise<boolean>) => Promise<boolean | null>;
@@ -12,6 +13,14 @@ type Action =
   | { type: "copy" | "move"; folder: string }
   | { type: "rename"; name: string }
   | { type: "duplicate" | "trash" | "open" | "reveal" };
+
+const actionSuccess: Partial<Record<Action["type"], string>> = {
+  copy: "Copied",
+  move: "Moved",
+  rename: "Renamed",
+  duplicate: "Duplicated",
+  trash: "Moved to Trash",
+};
 
 export default function FileTreeMenu({ root, target, dismiss, changeEntry, onChanged, onRename }: {
   root: string;
@@ -48,7 +57,7 @@ export default function FileTreeMenu({ root, target, dismiss, changeEntry, onCha
     return () => element?.close();
   }, [deleteEntry]);
 
-  async function run(operation: () => Promise<boolean>, onError: (message: string) => void = setError) {
+  async function run(operation: () => Promise<boolean>, onError = (message: string) => toast.error("File action failed", message)) {
     if (running.current) return false;
     running.current = true;
     setBusy(true);
@@ -72,6 +81,8 @@ export default function FileTreeMenu({ root, target, dismiss, changeEntry, onCha
       if (changed === null) return false;
       if (changed && mounted.current) {
         callbacks.current.onChanged("folder" in action ? [path, action.folder] : [path], mutatesSource ? path : undefined);
+        const title = actionSuccess[action.type];
+        if (title) toast.success(title, action.type === "rename" ? action.name : fileName(path));
       }
       if (action.type === "move" || (changed && mutatesSource)) {
         setClipboard((current) => current && (action.type === "move" || isInsideFolder(path, current.path)) ? null : current);
@@ -89,8 +100,8 @@ export default function FileTreeMenu({ root, target, dismiss, changeEntry, onCha
       items.push({ label, icon: <HugeiconsIcon icon={icon} size={14} aria-hidden="true" />, action, enabled: !busy, ...options });
     };
     if (canChange) {
-      item("Copy", Copy01Icon, () => { setError(""); setClipboard({ path, cut: false }); });
-      item("Cut", ScissorIcon, () => { setError(""); setClipboard({ path, cut: true }); });
+      item("Copy", Copy01Icon, () => setClipboard({ path, cut: false }));
+      item("Cut", ScissorIcon, () => setClipboard({ path, cut: true }));
     }
     if (entry.isDirectory && clipboard) {
       item("Paste", ClipboardPasteIcon, () => void perform(clipboard.path, { type: clipboard.cut ? "move" : "copy", folder: path }), {
@@ -100,12 +111,12 @@ export default function FileTreeMenu({ root, target, dismiss, changeEntry, onCha
     if (canChange) {
       item("Duplicate", CopyPlusIcon, () => void perform(path, { type: "duplicate" }));
       item("Rename", Edit01Icon, () => {
-        setError("");
         onRename(entry, (name, reportError) => perform(path, { type: "rename", name }, reportError));
       }, { separator: true });
     }
     item("Copy Path", Copy01Icon, () => void run(async () => {
       await navigator.clipboard.writeText(stripVerbatimPrefix(path));
+      toast.success("Path copied");
       return true;
     }));
     if (!entry.isSymlink) {
@@ -124,7 +135,6 @@ export default function FileTreeMenu({ root, target, dismiss, changeEntry, onCha
       close={(_, restoreFocus = true) => dismiss(restoreFocus)}
       label={`Actions for ${target.entry.name}`}
     />}
-    {error && !deleteEntry && <p className="file-tree-action-error" role="alert">{error}</p>}
     {busy && !deleteEntry && <p className="file-tree-action-status" role="status">Working…</p>}
     {deleteEntry && <dialog ref={dialog} className="unsaved-dialog file-tree-dialog" aria-labelledby="tree-action-title" onCancel={(event) => {
       event.preventDefault();
@@ -132,7 +142,7 @@ export default function FileTreeMenu({ root, target, dismiss, changeEntry, onCha
     }}>
       <form onSubmit={async (event) => {
         event.preventDefault();
-        if (await perform(deleteEntry.path, { type: "trash" })) setDeleteEntry(null);
+        if (await perform(deleteEntry.path, { type: "trash" }, setError)) setDeleteEntry(null);
       }}>
         <h2 id="tree-action-title">Move to Trash?</h2>
         <p>{deleteEntry.name}</p>

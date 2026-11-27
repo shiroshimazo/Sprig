@@ -22,8 +22,9 @@ import WindowControls from "./WindowControls";
 import { isWindows } from "./lib/platform";
 import TerminalTabIcon from "./TerminalTabIcon";
 import type { TerminalIconId } from "./terminalIcons";
-import { isInsideFolder, normalizePath } from "./filePaths";
+import { fileName, isInsideFolder, normalizePath } from "./filePaths";
 import QuickOpen from "./QuickOpen";
+import { toast } from "./components/ui/toast-stack";
 import "./App.css";
 
 type TerminalTab = { id: string; name: string; cwd: string | null; icon?: TerminalIconId; detached?: boolean; sessionId?: string; detachOnReady?: boolean };
@@ -304,6 +305,7 @@ function App() {
       if (activePath.current === path) setFileContent(content);
       // The file changed on disk, so it is not committed yet.
       bumpGitStatus();
+      if (document.current === content) toast.success("File saved", fileName(path));
       return document.current === content;
     } catch (error) {
       setSaveError(`Cannot save ${path}: ${error instanceof Error ? error.message : String(error)}`);
